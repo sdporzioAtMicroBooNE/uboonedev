@@ -26,7 +26,7 @@ defaultqual e7:noifdh
 incdir	product_dir	include
 libdir	fq_dir		lib
 bindir	fq_dir		bin
-flcdir  product_dir     fcl
+flcdir  product_dir     job
 
 # With "product  version" table below, we now define depdendencies
 # Add the dependent product and version
@@ -39,10 +39,13 @@ end_product_list
 
 # We now define allowed qualifiers and the corresponding qualifiers for the depdencies.
 # Make a table by adding columns before "notes". 
-qualifier	larsoft	 	gcc	notes
-e7:noifdh:debug	e7:noifdh:debug	-nq-
-e7:noifdh:opt		e7:noifdh:opt		-nq-
-e7:noifdh:prof		e7:noifdh:prof		-nq-
+qualifier	larsoft		nutools		gcc	notes
+e7:debug	e7:debug	e7:debug	-nq-
+e7:opt		e7:opt		e7:opt		-nq-
+e7:prof		e7:prof		e7:prof		-nq-
+e7:noifdh:debug	e7:noifdh:debug	e7:noifdh:debug	-nq-
+e7:noifdh:opt	e7:noifdh:opt	e7:noifdh:opt	-nq-
+e7:noifdh:prof	e7:noifdh:prof	e7:noifdh:prof	-nq-
 end_qualifier_list
 
 # Preserve tabs and formatting in emacs and vi / vim:

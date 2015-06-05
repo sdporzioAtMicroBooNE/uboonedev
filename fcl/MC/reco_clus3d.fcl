@@ -1,0 +1,231 @@
+#include "services_microboone.fcl"
+#include "caldata_microboone.fcl"
+#include "hitfindermodules_microboone.fcl"
+#include "cluster_microboone.fcl"
+#include "opticaldetectormodules_microboone.fcl"
+#include "vertexfindermodules.fcl"
+#include "pandoramodules_microboone.fcl"
+#include "triggeralgo_service.fcl"
+#include "trackfindermodules_microboone.fcl"
+#include "cosmicremovalmodules.fcl"
+#include "mchitmodules.fcl"
+#include "mcreco.fcl"
+
+# Include the following lines to have the default microboone_disp definition
+# also include stuff we need to run recon
+BEGIN_PROLOG
+##microboone_services.BackTracker: @local::microboone_backtracker  
+END_PROLOG
+
+process_name: Reco2DTest
+
+services:
+{
+  # Load the service that manages root files for histograms.
+  TFileService: { fileName: "reco2D_hist.root" }
+  Timing:       {}
+  SimpleMemoryCheck:     { ignoreTotal: 1 } # default is one
+  RandomNumberGenerator: {} #ART native random number generator
+  #MemoryPeakReporter:    {}
+  message:      @local::microboone_message_services_prod_debug
+##  FileCatalogMetadata:  @local::art_file_catalog_mc
+  user:         @local::microboone_services
+}
+##services.FileCatalogMetadata.applicationVersion:  "S2013.06.25"
+
+services.user.PhotonVisibilityService: @local::microboone_photonvisibilityservice
+
+##services.user.DatabaseUtil.ShouldConnect: false
+
+##services.user.FileCatalogMetadataExtras:  @local::microboone_file_catalog
+##services.user.FileCatalogMetadataExtras.Metadata: [ "group",      "uboone",
+##                                                    "fileFormat", "root",
+##                                                    "fclName",    "standard_reco_uboone_2D.fcl",
+##                                                    "fclVersion", "v1_5",
+##                                                    "ubProjectStage",   "reco2D",
+##                                                    "ubProjectVersion", "v1_3" ]
+##services.user.FileCatalogMetadataExtras.RenameTemplate: "${base .root}_${CLUSTER 0}_${PROCESS 0}_reco2D.root"
+
+#source is now a root file
+source:
+{
+  module_type: RootInput
+  maxEvents:  100        # Number of events to create
+}
+
+# Define and configure some modules to do work on each event.
+# First modules are defined; they are scheduled later.
+# Modules are grouped by type.
+physics:
+{
+
+ producers:
+ {
+
+  ### random number saver
+  rns:                 { module_type: RandomNumberSaver }
+
+  ### mc hit collection producer
+  mchitfinder:            @local::standard_mchitfinder
+  mcreco:                  @local::standard_mcreco
+  calroiAltBaselineSub:   @local::microboone_calroi
+
+  ### calwire producers
+  caldata:                @local::microboone_calroi
+
+  ### hit-finder producers
+  gaushit:                @local::microboone_gaushitfinder
+  
+  ### cluster3D
+  cluster3d:              @local::microboone_cluster3d
+  fuzzycluster:           @local::microboone_fuzzycluster
+
+  ### track fit
+  track3dkalmanhit:       @local::microboone_track3Dkalmanhit
+
+  ### Dem old cozmic blues stuff
+  cosmictaggerKHit:       @local::microboone_cosmictracktagger
+  cosmicpfparticleKHit:   @local::microboone_cosmicpfparticletagger
+  cosmicpcaxisKHit:       @local::microboone_cosmicpcaxistagger
+  flashTrackMatchkHit:    @local::microboone_beamflashtrackmatchtagger
+
+  ### cosmic ray hit removal
+  crhitremoval:           @local::microboone_crhitremovalbypca
+ }
+
+ analyzers:
+ {
+    pandoraana:       @local::microboone_pandoraana
+    neutrinoana:      @local::microboone_neutrinoana
+    trackana:         @local::standard_trackana
+    neutrinoana:      @local::microboone_neutrinoana
+    pfparticlemcana:  @local::microboone_pfparticlemcana
+    hitana:           { module_type: HitAnaModule 
+                        HitModuleLabels: ["gaushit"]
+                        #HitModuleLabels: ["rffhit"]
+                        WireModuleLabel: "caldata" 
+                        #WireModuleLabel: "calroiAltBaselineSub" 
+		        MCHitModuleLabel: "mchitfinder" }
+    evdisp:{module_type: EVD}
+ }
+
+ #define the producer and filter modules for this path, order matters, 
+ #filters reject all following items.  see lines starting physics.producers below
+ reco: [
+#         rns,
+#         caldata, 
+#	  calroiAltBaselineSub,
+#         gaushit,
+#         cluster3d,
+#	 fuzzycluster,
+# 	  cosmicpcaxisKHit,
+#         track3dkalmanhit,
+#	 mchitfinder]  #,
+#         mcreco
+         ]
+
+ #define the analysis modules
+ analysis: [ pfparticlemcana, pandoraana, neutrinoana, trackana, hitana ]
+
+ #define the output stream, there could be more than one if using filters 
+ stream1:  [ out1 ]
+
+ #trigger_paths is a keyword and contains the paths that modify the art::event, 
+ #ie filters and producers
+ trigger_paths: [reco] 
+
+ #end_paths is a keyword and contains the paths that do not modify the art::Event, 
+ #ie analyzers and output streams.  these all run simultaneously
+ end_paths:     [ analysis ]  
+}
+
+#block to define where the output goes.  if you defined a filter in the physics
+#block and put it in the trigger_paths then you need to put a SelectEvents: {SelectEvents: [XXX]}
+#entry in the output stream you want those to go to, where XXX is the label of the filter module(s)
+outputs:
+{
+ out1:
+ {
+   module_type: RootOutput
+   fileName:    "cluster3d_bnbcosmic_test.root"
+##   dataTier:    "reconstructed-2d"
+   compressionLevel: 1
+ }
+}
+
+### Here, we overwrite ALL module labels with the ones defined above.
+
+physics.producers.caldata.DigitModuleLabel:                     "daq"
+
+physics.producers.calroiAltBaselineSub.DoBaselineSub:           false
+physics.producers.calroiAltBaselineSub.DoBaselineSub_WaveformPropertiesAlg: true
+
+#physics.producers.gaushit.CalDataModuleLabel:                   "caldata"
+physics.producers.gaushit.CalDataModuleLabel:                   "calroiAltBaselineSub"
+#physics.producers.gaushit.MinSigInd:                            4.0
+#physics.producers.gaushit.MinSigCol:                            6.0
+#physics.producers.gaushit.MinSigInd:                            5.
+#physics.producers.gaushit.MinSigCol:                            4.
+#physics.producers.gaushit.MinSigInd:                            2.
+#physics.producers.gaushit.MinSigCol:                            2.
+##physics.producers.gaushit.MinSig:                               [4.,     5.,    3.]
+physics.producers.gaushit.MinSig:                               [2.5,    2.5,   2.5]
+physics.producers.gaushit.InitWidth:                            [6.0,    6.0,   7.8]
+physics.producers.gaushit.MinWidth:                             [4.0,    4.0,   6.0]
+physics.producers.gaushit.AreaNorms:                            [13.25, 13.25, 26.31]
+
+##physics.producers.cluster3d.HitFinderModuleLabel:               "crhitremoval"
+physics.producers.cluster3d.ClusterHitRejectionFrac:            0.39
+physcis.producers.cluster3d.SeedFinderAlg.ThetaBins:            360
+physics.producers.cluster3d.SeedFinderAlg.HalfRhoBins:          75
+physics.producers.cluster3d.PCASeedFinderAlg.MinAllowedCosAng:  0.9
+physics.producers.cluster3d.EnableMonitoring:                   true
+
+physics.producers.track3dkalmanhit.UseClusterHits:              false
+physics.producers.track3dkalmanhit.UsePFParticleHits:           true
+physics.producers.track3dkalmanhit.PFParticleModuleLabel:       "cluster3d"
+physics.producers.track3dkalmanhit.MaxChopHits:                 0
+physics.producers.track3dkalmanhit.MinSeedHits:                 5
+
+physics.analyzers.pfparticlemcana.McHitFinderLabel:             "mchitfinder"
+physics.analyzers.pfparticlemcana.PFParticleLabel:              "cluster3d"
+physics.analyzers.pfparticlemcana.HitLabel:                     "gaushit"
+physics.analyzers.pfparticlemcana.ClusterProducerLabel:         "cluster3d"
+
+physics.analyzers.pandoraana.PFParticleLabel:                   "cluster3d"
+physics.analyzers.pandoraana.ClusterProducerLabel:              "cluster3d"
+physics.analyzers.pandoraana.TrackProducerLabel:                "track3dkalmanhit"
+physics.analyzers.neutrinoana.PFParticleLabel:                  "cluster3d"
+physics.analyzers.neutrinoana.ClusterProducerLabel:             "cluster3d"
+physics.analyzers.neutrinoana.TrackProducerLabel:               "track3dkalmanhit"
+physics.analyzers.trackana.TrackModuleLabel:                    "track3dkalmanhit"
+physics.analyzers.trackana.SpacepointModuleLabel:               "cluster3d"
+
+#services.user.SignalShapingServiceMicroBooNE.FieldResponseFname:     "uboone_response_v1.3.root"
+#services.user.SignalShapingServiceMicroBooNE.UseHistogramFieldShape: true
+#services.user.SignalShapingServiceMicroBooNE.DeconNorm:              100
+#services.user.SignalShapingServiceMicroBooNE.ShapeTimeConst: [ 1.0, 1.0, 2.0 ]
+
+
+services.message.destinations :
+{
+  STDCOUT: 
+  {
+     type:      "cout"      #tells the message service to output this destination to cout
+     threshold: "DEBUG"     #tells the message service that this destination applies to INFO and higher level messages
+     append:     true       #says to append all messages to the output
+     categories:
+     {
+       Cluster3D:
+       {
+         limit: -1
+         reportEvery: 1
+       }
+       default:
+       {
+         limit: 0  #don't print anything at the infomsg level except the explicitly named categories
+         reportEvery: 1
+       }
+     }
+  }
+}

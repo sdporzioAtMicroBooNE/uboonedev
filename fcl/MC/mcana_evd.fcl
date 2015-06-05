@@ -1,0 +1,138 @@
+#include "evdservices_microboone.fcl"
+
+#include "caldata_microboone.fcl"
+#include "hitfindermodules_microboone.fcl"
+#include "triggeralgo_service.fcl"
+
+# Include the following lines to have the default microboone_disp definition
+# also include stuff we need to run recon
+BEGIN_PROLOG
+microboone_disp.LArFFT:                         @local::microboone_larfft
+microboone_disp.SignalShapingServiceMicroBooNE: @local::microboone_signalshapingservice
+microboone_disp.MemoryPeakReporter: {}
+microboone_disp.BackTracker:                   @local::microboone_backtracker
+#microboone_disp.SpaceCharge:                   @local::microboone_spacecharge
+microboone_disp.SeedService:                   @local::microboone_seedservice
+END_PROLOG
+
+process_name: Reco2DTestEVD
+
+services:
+{
+  # Load the service that manages root files for histograms.
+  TFileService: { fileName: "reco2_evd_hist.root" }
+  Timing:       {}
+  SimpleMemoryCheck:     { ignoreTotal: 1 } # default is one
+  RandomNumberGenerator: {} #ART native random number generator
+  #MemoryPeakReporter:    {}
+  message:      @local::microboone_message_services_prod_debug
+##  FileCatalogMetadata:  @local::art_file_catalog_mc
+  user:         @local::microboone_disp
+}
+##services.FileCatalogMetadata.applicationVersion:  "S2013.06.25"
+
+services.user.PhotonVisibilityService: @local::microboone_photonvisibilityservice
+
+#source is now a root file
+source:
+{
+  module_type: RootInput
+  maxEvents:  10        # Number of events to create
+}
+
+# Define and configure some modules to do work on each event.
+# First modules are defined; they are scheduled later.
+# Modules are grouped by type.
+physics:
+{
+
+ producers:
+ {
+ }
+
+ analyzers:
+ {
+   pfpartana: {
+                module_type:          "PFParticleMcAna"
+                SimulationLabel:      "largeant"
+                McHitFinderLabel:     "mchitfinder"
+                #PFParticleLabel:      "cluster3d"
+                #HitLabel:             "gaushit"
+                #ClusterProducerLabel: "cluster3d"
+                #TrackProducerLabel:   "trackkalmanhitc3d"
+                #CosmicProducerLabel:  "cluster3dpcatag"
+                #FlashProducerLabel:   "flashTrackMatchkHit"
+                PFParticleLabel:      "cctrack"
+                HitLabel:             "cccluster"
+                ClusterProducerLabel: "cccluster"
+                TrackProducerLabel:   "trackkalmanhitccc"
+                CosmicProducerLabel:  "trackkalmanhittagcc"
+                FlashProducerLabel:   "trackkalmanhitflashmatchcc"
+                PDGcode:              13
+              }
+   digitana: { module_type:         LArRawDigitAna 
+               DigitModuleLabel:    "daq"
+	       UseChannelPedestals: true
+	       WritePedestals:      false
+	     }
+   evdisp:   {module_type: EVD}
+ }
+
+ #define the producer and filter modules for this path, order matters, 
+ #filters reject all following items.  see lines starting physics.producers below
+ reco: [ ]
+
+ #define the analysis modules
+ analysis: [ pfpartana ]
+
+ #trigger_paths is a keyword and contains the paths that modify the art::event, 
+ #ie filters and producers
+ trigger_paths: [reco] 
+
+ evd: [ evdisp ]
+
+ #end_paths is a keyword and contains the paths that do not modify the art::Event, 
+ #ie analyzers and output streams.  these all run simultaneously
+ end_paths:     [ analysis, evd ]  
+}
+
+### Here, we overwrite ALL module labels with the ones defined above.
+
+services.user.SimulationDrawingOptions.ShowMCTruthVectors:      false
+services.user.SimulationDrawingOptions.ShowMCTruthTrajectories: true
+services.user.SimulationDrawingOptions.MinimumEnergyDeposition: 0.0001  # in GeV
+
+services.user.RawDrawingOptions.DetPedestalRetrievalAlg:        @local::microboone_pedestalretrievalalg
+services.user.RawDrawingOptions.DrawRawDataOrCalibWires:        1
+services.user.RawDrawingOptions.TotalTicks:                     9600
+services.user.EvdLayoutOptions.AutoZoomInterest:                0
+
+services.user.RecoDrawingOptions.DrawClusters:                  1 #4    # draw w connecting lines & labels
+services.user.RecoDrawingOptions.DrawPFParticles:               1     # This for the 3D display 
+services.user.RecoDrawingOptions.DrawSkeleton3DHitsOnly:        true  # A cluster 3D specific option
+services.user.RecoDrawingOptions.DrawBestPCAAxisOnly:           true  # A cluster 3D specific option
+services.user.RecoDrawingOptions.Draw2DSlopeEndPoints:          2     # This draws cluster axis in 2D (but there is bug)
+services.user.RecoDrawingOptions.Draw2DEndPoints:               2
+services.user.RecoDrawingOptions.DrawSeeds:                     2     # This draws "Seed" objects if they exist
+services.user.RecoDrawingOptions.DrawTracks:                    2     # Draws "tracks"  
+services.user.RecoDrawingOptions.DrawProngs:                    2     # Draws "prongs" (which is really the same)
+services.user.RecoDrawingOptions.DrawTrackTrajectoryPoints:     2     # Draws points associated to tracks
+services.user.RecoDrawingOptions.DrawTrackSpacePoints:          2     # Draws space points
+
+### Where to get the information to draw
+#services.user.RecoDrawingOptions.HitModuleLabels:               ["gaushit"] 
+#services.user.RecoDrawingOptions.WireModuleLabels:              ["caldata"]
+#services.user.RecoDrawingOptions.ClusterModuleLabels:           ["cluster3d"]
+#services.user.RecoDrawingOptions.EndPoint2DModuleLabels:        ["cluster3d"]
+#services.user.RecoDrawingOptions.PFParticleModuleLabels:        ["cluster3d"]
+#services.user.RecoDrawingOptions.SeedModuleLabels:              ["cluster3d"]
+#services.user.RecoDrawingOptions.TrackModuleLabels:             ["trackkalmanhit3d"]
+#services.user.RecoDrawingOptions.ProngModuleLabels:             ["trackkalmanhit3d"]
+services.user.RecoDrawingOptions.HitModuleLabels:               ["cccluster"] 
+services.user.RecoDrawingOptions.WireModuleLabels:              ["caldata"]
+services.user.RecoDrawingOptions.ClusterModuleLabels:           ["cccluster"]
+services.user.RecoDrawingOptions.EndPoint2DModuleLabels:        ["cccluster"]
+services.user.RecoDrawingOptions.PFParticleModuleLabels:        ["cctrack"]
+services.user.RecoDrawingOptions.SeedModuleLabels:              ["cctrack"]
+services.user.RecoDrawingOptions.TrackModuleLabels:             ["trackkalmanhitcc"]
+services.user.RecoDrawingOptions.ProngModuleLabels:             ["trackkalmanhitcc"]
