@@ -39,7 +39,7 @@
 #include "CGAL/convex_hull_2.h"
 
 #include "CGAL/point_generators_3.h"
-#include "CGAL/Delaunay_triangulation_2.h"
+#include "CGAL/Delaunay_triangulation_3.h"
 #include "CGAL/Polyhedron_3.h"
 #include "CGAL/convex_hull_3_to_polyhedron_3.h"
 #include "CGAL/algorithm.h"
@@ -95,15 +95,14 @@ private:
     typedef CGALKernel::Point_3                                 Point_3;
     typedef std::list<Point_3>                                  CGALPoints3List;
     
-    typedef CGAL::Delaunay_triangulation_2<CGALKernel>          Delaunay;
-    //typedef CGAL::Triangulation_3<CGALKernel>                   Delaunay;
+    typedef CGAL::Triangulation_3<CGALKernel>                   Delaunay;
     typedef Delaunay::Point                                     Point;
     typedef Delaunay::Vertex_handle                             Vertex_handle;
     typedef Delaunay::Edge                                      Edge_handle;
-    typedef Delaunay::Edge_circulator                           Edge_circulator;
-    typedef Delaunay::Edge_iterator                             Edge_iterator;
-//    typedef Delaunay::Cell_handle                               Cell_handle;
-//    typedef CGAL::Triple<Cell_handle, int, int>                 EdgeTriple;
+//    typedef Delaunay::Edge_circulator                           Edge_circulator;
+//    typedef Delaunay::Edge_iterator                             Edge_iterator;
+    typedef Delaunay::Cell_handle                               Cell_handle;
+    typedef CGAL::Triple<Cell_handle, int, int>                 EdgeTriple;
     
     typedef std::map<const Point, const recob::SpacePoint*>     CGALPointsToSpacePointsMap;
     typedef std::list<Point>                                    DelaunayPointList;
@@ -158,11 +157,8 @@ CGALTest::CGALTest(fhicl::ParameterSet const &pset)
 {
     this->reconfigure(pset);
 
-    produces< std::vector<recob::SpacePoint>>();
     produces< std::vector<recob::HalfEdge>>();
-    produces< art::Assns<recob::PFParticle, recob::SpacePoint>>();
     produces< art::Assns<recob::PFParticle, recob::HalfEdge>>();
-    produces< art::Assns<recob::SpacePoint, recob::HalfEdge>>();
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -227,11 +223,8 @@ void CGALTest::produce(art::Event &evt)
     
     mf::LogDebug("CGALTest") << " *** CGALTest::ProduceArtClusters() *** " << std::endl;
     
-    std::unique_ptr< std::vector<recob::SpacePoint>> artSpacePointVector( new std::vector<recob::SpacePoint> );
-    std::unique_ptr< std::vector<recob::HalfEdge>>   artHalfEdgeVector( new std::vector<recob::HalfEdge> );
-    std::unique_ptr< art::Assns<recob::PFParticle, recob::SpacePoint>>  artPFPartSPAssociations(     new art::Assns<recob::PFParticle, recob::SpacePoint>   );
+    std::unique_ptr< std::vector<recob::HalfEdge>>                      artHalfEdgeVector( new std::vector<recob::HalfEdge> );
     std::unique_ptr< art::Assns<recob::PFParticle, recob::HalfEdge>>    artPFPartHEAssociations(     new art::Assns<recob::PFParticle, recob::HalfEdge>     );
-    std::unique_ptr< art::Assns<recob::SpacePoint, recob::HalfEdge>>    artSpacePointHEAssociations( new art::Assns<recob::SpacePoint, recob::HalfEdge>     );
     
     // Ok, recover the PFParticles from which all else derives
     art::Handle< std::vector<recob::PFParticle> > pfParticleHandle;
@@ -244,7 +237,6 @@ void CGALTest::produce(art::Event &evt)
         art::FindMany<recob::SpacePoint> spacePointAssnVec(pfParticleHandle, evt, fPFParticleProducer);
 
         // We need these for building SpacePoints associated with the convex hull
-        int    spacePointIdx(0);
         int    halfEdgeIdx(0);
 
         // If no valid space point associations then nothing to do
@@ -253,10 +245,10 @@ void CGALTest::produce(art::Event &evt)
             // Ok, loop over PFParticles and begin the process!
             for(size_t idx = 0; idx < pfParticleHandle->size(); idx++)
             {
-                if (idx > 0) break;
+//                if (idx > 0) break;
                 
                 // Recover cluster
-                const art::Ptr<recob::PFParticle> pfParticle(pfParticleHandle, idx);
+                art::Ptr<recob::PFParticle> pfParticle(pfParticleHandle, idx);
                 
                 // Consider only "primary" PFParticles
                 if (!pfParticle->IsPrimary()) continue;
@@ -267,7 +259,7 @@ void CGALTest::produce(art::Event &evt)
                 if (pcaVec.empty()) continue;
                 
                 // And the space points
-                const std::vector<const recob::SpacePoint*>& hitsVec(spacePointAssnVec.at(pfParticle->Self()));
+                std::vector<const recob::SpacePoint*> hitsVec = spacePointAssnVec.at(pfParticle.key());
                 
                 if (hitsVec.empty()) continue;
                 
@@ -286,13 +278,12 @@ void CGALTest::produce(art::Event &evt)
                 TVector3 axis3Dir(   pca.getEigenVectors()[2][0], pca.getEigenVectors()[2][1], pca.getEigenVectors()[2][2]);
                 
                 // Define the points vector to be filled
-//                CGALPointsVec   cgalPointsVec;
-//                CGALPoints3List   cgalPoints3List;
                 DelaunayPointList delaunayPointList;
                 
                 // This will be a useful map
                 CGALPointsToSpacePointsMap cgalPointsToSpacePointsMap;
 
+                // Loop through the input space points and create the points to be used in the triangulation
                 for(const auto spacePoint : hitsVec)
                 {
                     // Skeleton points for now
@@ -300,69 +291,11 @@ void CGALTest::produce(art::Event &evt)
                     
                     // Recover the hull vertex position
                     const double* xyz = spacePoint->XYZ();
-                    
-                    TVector3 spacePointPos(xyz[0],xyz[1],xyz[2]);
-                    TVector3 pcaToSpVec = spacePointPos - planeOrigin;
-                    
-                    // Projections (distance)
-                    double proj1Dist = pcaToSpVec.Dot(axis1Dir);
-                    double proj2Dist = pcaToSpVec.Dot(axis2Dir);
-//                    double proj3Dist = pcaToSpVec.Dot(axis3Dir);
 
-//                    cgalPointsVec.push_back(Point_2(proj1Dist, proj2Dist));
-//                    cgalPoints3List.push_back(Point_3(xyz[0],xyz[1],xyz[2]));
-//                    cgalPointsToSpacePointsMap[cgalPointsVec.back()] = spacePoint;
-//                    delaunayPointList.emplace_back(Point(xyz[0] - planeOrigin.X(), xyz[1] - planeOrigin.Y(), xyz[2] - planeOrigin.Z()));
-                    delaunayPointList.emplace_back(Point(proj1Dist, proj2Dist));
+                    delaunayPointList.emplace_back(Point(xyz[0], xyz[1], xyz[2]));
                     cgalPointsToSpacePointsMap[delaunayPointList.back()] = spacePoint;
                 }
-/*
-                for(double xPos = -50.; xPos < 51.; xPos += 20.)
-                {
-                    for(double yPos = -50.; yPos < 51.; yPos += 20.)
-                    {
-                        for(double zPos = -50.; zPos < 51.; zPos += 20.)
-                        {
-                            delaunayPointList.emplace_back(Point(xPos,yPos,zPos));
-                        }
-                    }
-                }
-*/
- /*
-                // define a container for the results
-                CGALPointsVec convexHullVec;
-                
-                // Calculate it!
-                CGAL::convex_hull_2(cgalPointsVec.begin(), cgalPointsVec.end(), std::back_inserter(convexHullVec));
-                
-                // Keep track of current start for space points
-                std::vector<art::Ptr<recob::SpacePoint> > spacePointPtrVec;
-                
-                // See if we can recover the original space points
-                for(const auto& point2 : convexHullVec)
-                {
-                    const recob::SpacePoint* spacePoint = cgalPointsToSpacePointsMap[point2];
-                    
-                    if (!spacePoint)
-                    {
-                        std::cout << "crap!" << std::endl;
-                        continue;
-                    }
-                    
-                    // Ok, clone from the original space point
-                    artSpacePointVector->push_back(recob::SpacePoint(spacePoint->XYZ(),spacePoint->ErrXYZ(),spacePoint->Chisq(),spacePointIdx));
-                    
-                    // We also want to make associations so we need to recover an art::Ptr to the SpacePoint
-                    art::ProductID spacePointId = getProductID<std::vector<recob::SpacePoint> >(evt);
-                    art::Ptr<recob::SpacePoint> spacePointPtr(spacePointId, spacePointIdx, evt.productGetter(spacePointId));
-                    spacePointPtrVec.push_back(spacePointPtr);
-                    
-                    spacePointIdx++;
-                }
-                
-                // Make associations to the SpacePoints
-                util::CreateAssn(*this, evt, pfParticle, spacePointPtrVec, *artPFPartSPAssociations);
-*/
+
                 if (delaunayPointList.size() > 3)
                 {
                     // Try the 3D stuff here...
@@ -382,94 +315,43 @@ void CGALTest::produce(art::Event &evt)
 //                    std::cout << "  ==> # vertices: " << T.number_of_vertices() << ", faces: " << T.number_of_cells() << ", finite: " << T.number_of_finite_cells()
 //                              << ", edges: " << T.number_of_edges() << ", finite: " << T.number_of_finite_edges() << std::endl;
 //                    std::cout << "  --> first vertex: " << vertexFront->point() << std::endl;
-/*
-                    // Trial loop through cells to find all possible edges...
-                    for(const auto& cellHandle : cellList)
-                    {
-                        for(int firstVtxIdx = 0; firstVtxIdx < 4; firstVtxIdx++)
-                        {
-                            const Vertex_handle firstVtxHandle = cellHandle->vertex(firstVtxIdx);
-                            
-                            TVector3 firstPoint(firstVtxHandle->point()[0],firstVtxHandle->point()[1],firstVtxHandle->point()[2]);
-                            
-                            for(int secondVtxIdx = firstVtxIdx + 1; secondVtxIdx < 4; secondVtxIdx++)
-                            {
-                                const Vertex_handle secondVtxHandle = cellHandle->vertex(secondVtxIdx);
-                                
-                                TVector3 secondPoint(secondVtxHandle->point()[0],secondVtxHandle->point()[1],secondVtxHandle->point()[2]);
-                                TVector3 deltaPoint = secondPoint - firstPoint;
-                                
-                                std::cout << "  --> cell idxs: " << firstVtxIdx << ", " << secondVtxIdx << ", dist: " << deltaPoint.Mag() << std::endl;
-                            }
-                        }
-                    }
-*/
+
                     // Get the vertices/space points... keep a map to go back and forth
                     std::map<Vertex_handle, const recob::SpacePoint*> vertexToSpacePointMap;
-                    
-                    // Keep track of current start for space points
-                    std::vector<art::Ptr<recob::SpacePoint> > spacePointPtrVec;
-                    
-                    double spacePointErr[] = {1., 0., 1., 0., 0., 1.};
-                    
-                    artSpacePointVector->reserve(delaunayPointList.size()+1);
                     
                     // Traverse ALL of the vertices in the triangulation and make space points, etc.
                     int numVertices(0);
                     
-                    art::ProductID spacePointId = getProductID<std::vector<recob::SpacePoint> >(evt);
-                    
                     for(auto vertexItr = T.tds().vertices_begin(); vertexItr != T.tds().vertices_end(); vertexItr++)
                     {
                         // Ignore the "infinite" vertex for now
-                        //if (vertexItr == T.tds().vertices_begin()) continue;
-                        
-                        double spacePointPos[] = {planeOrigin.X(), planeOrigin.Y(), planeOrigin.Z()};
-                        double spacePointChi(0.);
+                        if (vertexItr == T.tds().vertices_begin()) continue;
                         
                         CGALPointsToSpacePointsMap::iterator mapItr = cgalPointsToSpacePointsMap.find(vertexItr->point());
                         
-                        if (mapItr != cgalPointsToSpacePointsMap.end())
+                        if (mapItr == cgalPointsToSpacePointsMap.end())
                         {
-                            const recob::SpacePoint* spacePoint = mapItr->second;
-                            spacePointPos[0] = spacePoint->XYZ()[0];
-                            spacePointPos[1] = spacePoint->XYZ()[1];
-                            spacePointPos[2] = spacePoint->XYZ()[2];
-                            spacePointChi    = spacePoint->Chisq();
+                            continue;
                         }
-                        else
-                            std::cout << "==> Creating infinite space point" << std::endl;
                         
-                        //double spacePointPos[] = {vertexItr->point().x() + planeOrigin.X(), vertexItr->point().y() + planeOrigin.Y(), vertexItr->point().z() + planeOrigin.Z()};
-                        artSpacePointVector->push_back(recob::SpacePoint(spacePointPos,spacePointErr,spacePointChi,spacePointIdx));
+                        const recob::SpacePoint* spacePointPtr = mapItr->second;
                         
-                        // We also want to make associations so we need to recover an art::Ptr to the SpacePoint
-                        art::Ptr<recob::SpacePoint> spacePointPtr(spacePointId, spacePointIdx, evt.productGetter(spacePointId));
-                        spacePointPtrVec.push_back(spacePointPtr);
-                        
-                        spacePointIdx++;
-                        
-                        vertexToSpacePointMap[vertexItr] = &artSpacePointVector->back();
+                        vertexToSpacePointMap[vertexItr] = spacePointPtr;
                         
                         numVertices++;
                     }
                     
-                    std::cout << "--> Dealaunay point list size: " << delaunayPointList.size() << ", # vertices: " << numVertices << std::endl;
-                    
+//                    std::cout << "--> Dealaunay point list size: " << delaunayPointList.size() << ", # vertices: " << numVertices << std::endl;
+/*
                     // Set up to make the half edges which will also want associations
                     std::vector<art::Ptr<recob::HalfEdge> > halfEdgePtrVec;
                     art::ProductID halfEdgeId = getProductID<std::vector<recob::HalfEdge> >(evt);
-                    
-                    // Are we using all of the space points?
-                    std::set<int> usedSpacePointSet;
-                    
+
                     // repeat this loop...
-                    for(auto edgeCirculator = T.tds().edges_begin(); edgeCirculator != T.tds().edges_end(); edgeCirculator++)
+                    for(auto vertexItr = T.tds().vertices_begin(); vertexItr != T.tds().vertices_end(); vertexItr++)
                     {
-//                    for(auto vertexItr = T.tds().vertices_begin(); vertexItr != T.tds().vertices_end(); vertexItr++)
-//                    {
                         // Ignore the "infinite" vertex for now
-//                        if (vertexItr == T.tds().vertices_begin()) continue;
+                        if (vertexItr == T.tds().vertices_begin()) continue;
                         
                         // Traverse the edges incident to this vertex here?
 //                        Edge_circulator edgeCirculator = T.incident_edges(vertexItr);
@@ -538,11 +420,8 @@ void CGALTest::produce(art::Event &evt)
 //                        } while(++edgeCirculator != done);
                         
                     }
-                    // Make associations to the SpacePoints
-                    util::CreateAssn(*this, evt, pfParticle, spacePointPtrVec, *artPFPartSPAssociations);
-                    
-                    std::cout << "**> used space point set size: " << usedSpacePointSet.size() << std::endl;
-/*
+*/
+
                     // Set up to make the half edges which will also want associations
                     std::vector<art::Ptr<recob::HalfEdge> > halfEdgePtrVec;
                     art::ProductID halfEdgeId = getProductID<std::vector<recob::HalfEdge> >(evt);
@@ -566,7 +445,7 @@ void CGALTest::produce(art::Event &evt)
                             
                             if (!firstSpacePoint || !secondSpacePoint)
                             {
-                                std::cout << " **> Found null vtx pointer! " << firstSpacePoint << ", " << secondSpacePoint << std::endl;
+//                                std::cout << " **> Found null vtx pointer! " << firstSpacePoint << ", " << secondSpacePoint << std::endl;
                                 continue;
                             }
                             
@@ -578,7 +457,7 @@ void CGALTest::produce(art::Event &evt)
                             
                             if (halfEdgeLength > 10.)
                             {
-                                std::cout << "**> Edge length: " << halfEdgeLength << ", 1st Vtx pos: " << firstVtxHandle->point() << ", 2nd Vtx pos: " << secondVtxHandle->point() << std::endl;
+//                                std::cout << "**> Edge length: " << halfEdgeLength << ", 1st Vtx pos: " << firstVtxHandle->point() << ", 2nd Vtx pos: " << secondVtxHandle->point() << std::endl;
                                 continue;
                             }
                             
@@ -591,116 +470,10 @@ void CGALTest::produce(art::Event &evt)
                             halfEdgeIdx++;
                         }
                     }
-*/
+
                     // Make associations to the SpacePoints
                     util::CreateAssn(*this, evt, pfParticle, halfEdgePtrVec, *artPFPartHEAssociations);
-/*
-                    if (T.dimension() == 3 && vertexList.size() > 3)
-                    {
-                        // Now try the quick hull algorithm
-                        Polyhedron_3 convexHull;
-                
-                        CGAL::convex_hull_3_to_polyhedron_3(T, convexHull);
-                
-                        std::cout << "   --> 3D convex hull has " << convexHull.size_of_vertices() << " vertices, "
-                                  << convexHull.size_of_facets() << " facets, "
-                                  << convexHull.size_of_halfedges() << " half edges, "
-                                  << convexHull.size_of_border_halfedges() << " border half edges" << std::endl;
-                        
-                        // Get the vertices/space points... keep a map to go back and forth
-                        std::map<Polyhedron_3::Vertex_handle, const recob::SpacePoint*> vertexToSpacePointMap;
-                        
-                        // Keep track of current start for space points
-                        std::vector<art::Ptr<recob::SpacePoint> > spacePointPtrVec;
-                        
-                        double spacePointErr[] = {1., 0., 1., 0., 0., 1.};
-                        double spacePointChi(0.);
-                        
-                        artSpacePointVector->reserve(convexHull.size_of_vertices());
-                        
-                        for(Polyhedron_3::Vertex_iterator vertexItr = convexHull.vertices_begin(); vertexItr != convexHull.vertices_end(); vertexItr++)
-                        {
-                            std::cout << "  --> Vertex degree: " << vertexItr->vertex_degree() << ", point: " << vertexItr->point() << std::endl;
-                            
-                            double spacePointPos[] = {vertexItr->point().x(), vertexItr->point().y(), vertexItr->point().z()};
-                            artSpacePointVector->push_back(recob::SpacePoint(spacePointPos,spacePointErr,spacePointChi,spacePointIdx));
-                            
-                            // We also want to make associations so we need to recover an art::Ptr to the SpacePoint
-                            art::ProductID spacePointId = getProductID<std::vector<recob::SpacePoint> >(evt);
-                            art::Ptr<recob::SpacePoint> spacePointPtr(spacePointId, spacePointIdx, evt.productGetter(spacePointId));
-                            spacePointPtrVec.push_back(spacePointPtr);
-                            
-                            spacePointIdx++;
-                            
-                            vertexToSpacePointMap[vertexItr] = &artSpacePointVector->back();
-                        }
-                        
-                        // Make associations to the SpacePoints
-                        util::CreateAssn(*this, evt, pfParticle, spacePointPtrVec, *artPFPartSPAssociations);
-                        
-                        // Set up to make the half edges which will also want associations
-                        std::vector<art::Ptr<recob::HalfEdge> > halfEdgePtrVec;
-                        art::ProductID halfEdgeId = getProductID<std::vector<recob::HalfEdge> >(evt);
-                        
-                        for(Polyhedron_3::Facet_iterator facetItr = convexHull.facets_begin(); facetItr != convexHull.facets_end(); facetItr++)
-                        {
-                            //const Polyhedron_3::Facet_handle& facetHandle = *facetItr;
-                            
-                            size_t facetDegree = facetItr->facet_degree();
-                            
-                            std::cout << "   == Facet degree: " << facetDegree;
-                            
-                            Polyhedron_3::Halfedge_handle halfEdge_handle = facetItr->halfedge();
-                            
-                            do
-                            {
-                                std::cout << ", vertex degree: " << halfEdge_handle->vertex_degree();
-                                
-                                Polyhedron_3::Vertex_handle firstVertex = halfEdge_handle->prev()->vertex();
-                                Polyhedron_3::Vertex_handle nextVertex  = halfEdge_handle->vertex();
-                                
-                                const recob::SpacePoint* firstSpacePoint(nullptr);
-                                const recob::SpacePoint* nextSpacePoint(nullptr);
-                                
-                                auto firstVtxToSPItr = vertexToSpacePointMap.find(firstVertex);
-                                if (firstVtxToSPItr != vertexToSpacePointMap.end()) firstSpacePoint = firstVtxToSPItr->second;
-                                
-                                auto nextVtxToSPItr  = vertexToSpacePointMap.find(nextVertex);
-                                if (nextVtxToSPItr != vertexToSpacePointMap.end()) nextSpacePoint = nextVtxToSPItr->second;
-                                
-                                if (firstSpacePoint && nextSpacePoint)
-                                {
-                                    std::cout << ", vtx ids: " << firstSpacePoint->ID() << ", " << nextSpacePoint->ID();
-                                }
-                                else
-                                {
-                                    std::cout << ", vtx ptrs: " << firstSpacePoint << ", " << nextSpacePoint;
-                                }
-                                
-                                TVector3 firstPoint(firstSpacePoint->XYZ()[0],firstSpacePoint->XYZ()[1],firstSpacePoint->XYZ()[2]);
-                                TVector3 nextPoint( nextSpacePoint->XYZ()[0], nextSpacePoint->XYZ()[1], nextSpacePoint->XYZ()[2]);
-                                TVector3 deltaPoint = nextPoint - firstPoint;
-                                
-                                double halfEdgeLength = deltaPoint.Mag();
-                                
-                                artHalfEdgeVector->push_back(recob::HalfEdge(halfEdgeLength, firstSpacePoint->ID(), nextSpacePoint->ID(), halfEdgeIdx));
-                                
-                                // We also want to make associations so we need to recover an art::Ptr to the SpacePoint
-                                art::Ptr<recob::HalfEdge> halfEdgePtr(halfEdgeId, halfEdgeIdx, evt.productGetter(halfEdgeId));
-                                halfEdgePtrVec.push_back(halfEdgePtr);
-                                
-                                halfEdgeIdx++;
-                                
-                                halfEdge_handle = halfEdge_handle->next();
-                            } while(halfEdge_handle != facetItr->halfedge());
-                            
-                            std::cout << std::endl;
-                        }
-                        
-                        // Make associations to the SpacePoints
-                        util::CreateAssn(*this, evt, pfParticle, halfEdgePtrVec, *artPFPartHEAssociations);
-                    }
- */
+
                 }
             }
             
@@ -708,11 +481,8 @@ void CGALTest::produce(art::Event &evt)
     }
     
     // Finaly done, now output everything to art
-    evt.put(std::move(artSpacePointVector));
     evt.put(std::move(artHalfEdgeVector));
-    evt.put(std::move(artPFPartSPAssociations));
     evt.put(std::move(artPFPartHEAssociations));
-    evt.put(std::move(artSpacePointHEAssociations));
     
     // If monitoring then deal with the fallout
     if (fEnableMonitoring)
