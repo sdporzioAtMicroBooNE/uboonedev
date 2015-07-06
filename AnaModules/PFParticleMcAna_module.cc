@@ -199,6 +199,7 @@ private:
     std::vector<Int_t>       fMcPartTrackID;
     std::vector<Int_t>       fMcParentTrackID;
     std::vector<Int_t>       fMcPartNumRecoHits;
+    std::vector<Int_t>       fMcPartNumUniqueHits;
     std::vector<Int_t>       fMcPartNumPFParts;
     std::vector<Int_t>       fMcPartBestPFPart;
     std::vector<UShort_t>    fMcPartPrimary;
@@ -258,6 +259,13 @@ private:
     std::vector<Float_t>     fCosmicGeoScore;
     std::vector<Float_t>     fCosmicGeoTag;
     std::vector<Float_t>     fFlashScore;
+    
+    std::vector<Float_t>     fCosmicStartX;
+    std::vector<Float_t>     fCosmicStartY;
+    std::vector<Float_t>     fCosmicStartZ;
+    std::vector<Float_t>     fCosmicEndX;
+    std::vector<Float_t>     fCosmicEndY;
+    std::vector<Float_t>     fCosmicEndZ;
     
     // Other variables that will be shared between different methods.
     art::ServiceHandle<geo::Geometry>            fGeometry;       // pointer to Geometry service
@@ -327,35 +335,37 @@ void PFParticleMcAna::beginJob()
     fMcPartTrackID.resize(fMaxEntries, 0);
     fMcParentTrackID.resize(fMaxEntries, -1.);
     fMcPartNumRecoHits.resize(fMaxEntries, 0);
+    fMcPartNumUniqueHits.resize(fMaxEntries, 0);
     fMcPartNumPFParts.resize(fMaxEntries, 0);
     fMcPartBestPFPart.resize(fMaxEntries, 0);
     fMcPartPrimary.resize(fMaxEntries, 0);
     fMcNeutrinoDaughter.resize(fMaxEntries, 0);
 
-    fAnaTree->Branch("McPartPDGCode",            fPDGCode.data(),            "McPartPDGCode[NumMcParticles]/I");
-    fAnaTree->Branch("McPartStartX",             fMcPartStartX.data(),       "McPartStartX[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartY",             fMcPartStartY.data(),       "McPartStartY[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartZ",             fMcPartStartZ.data(),       "McPartStartZ[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartDirX",          fMcPartStartDirX.data(),    "McPartStartDirX[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartDirY",          fMcPartStartDirY.data(),    "McPartStartDirY[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartDirZ",          fMcPartStartDirZ.data(),    "McPartStartDirZ[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndX",               fMcPartEndX.data(),         "McPartEndX[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndY",               fMcPartEndY.data(),         "McPartEndY[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndZ",               fMcPartEndZ.data(),         "McPartEndZ[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndDirX",            fMcPartEndDirX.data(),      "McPartEndDirX[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndDirY",            fMcPartEndDirY.data(),      "McPartEndDirY[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndDirZ",            fMcPartEndDirZ.data(),      "McPartEndDirZ[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEne",                fMcPartEne.data(),          "McPartEne[NumMcParticles]/F");
-    fAnaTree->Branch("McPartMom",                fMcPartMom.data(),          "McPartMom[NumMcParticles]/F");
-    fAnaTree->Branch("McPartMass",               fMcPartMass.data(),         "McPartMass[NumMcParticles]/F");
-    fAnaTree->Branch("McPartTrackLen",           fMcPartTrackLen.data(),     "McPartTrackLen[NumMcParticles]/F");
-    fAnaTree->Branch("McPartTrackID",            fMcPartTrackID.data(),      "McPartTrackID[NumMcParticles]/I");
-    fAnaTree->Branch("McParentTrackID",          fMcParentTrackID.data(),    "McParentTrackID[NumMcParticles]/I");
-    fAnaTree->Branch("McPartNumRecoHits",        fMcPartNumRecoHits.data(),  "McPartNumRecoHits[NumMcParticles]/I");
-    fAnaTree->Branch("McPartNumPFParts",         fMcPartNumPFParts.data(),   "McPartNumPFParts[NumMcParticles]/I");
-    fAnaTree->Branch("McPartBestPFPart",         fMcPartBestPFPart.data(),   "McPartBestPFPart[NumMcParticles]/I");
-    fAnaTree->Branch("McPartPrimary",            fMcPartPrimary.data(),      "McPartPrimary[NumMcParticles]/s");
-    fAnaTree->Branch("McNeutrinoDaughter",       fMcNeutrinoDaughter.data(), "McNeutrinoDaughter[NumMcParticles]/s");
+    fAnaTree->Branch("McPartPDGCode",            fPDGCode.data(),             "McPartPDGCode[NumMcParticles]/I");
+    fAnaTree->Branch("McPartStartX",             fMcPartStartX.data(),        "McPartStartX[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartY",             fMcPartStartY.data(),        "McPartStartY[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartZ",             fMcPartStartZ.data(),        "McPartStartZ[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartDirX",          fMcPartStartDirX.data(),     "McPartStartDirX[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartDirY",          fMcPartStartDirY.data(),     "McPartStartDirY[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartDirZ",          fMcPartStartDirZ.data(),     "McPartStartDirZ[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndX",               fMcPartEndX.data(),          "McPartEndX[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndY",               fMcPartEndY.data(),          "McPartEndY[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndZ",               fMcPartEndZ.data(),          "McPartEndZ[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndDirX",            fMcPartEndDirX.data(),       "McPartEndDirX[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndDirY",            fMcPartEndDirY.data(),       "McPartEndDirY[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndDirZ",            fMcPartEndDirZ.data(),       "McPartEndDirZ[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEne",                fMcPartEne.data(),           "McPartEne[NumMcParticles]/F");
+    fAnaTree->Branch("McPartMom",                fMcPartMom.data(),           "McPartMom[NumMcParticles]/F");
+    fAnaTree->Branch("McPartMass",               fMcPartMass.data(),          "McPartMass[NumMcParticles]/F");
+    fAnaTree->Branch("McPartTrackLen",           fMcPartTrackLen.data(),      "McPartTrackLen[NumMcParticles]/F");
+    fAnaTree->Branch("McPartTrackID",            fMcPartTrackID.data(),       "McPartTrackID[NumMcParticles]/I");
+    fAnaTree->Branch("McParentTrackID",          fMcParentTrackID.data(),     "McParentTrackID[NumMcParticles]/I");
+    fAnaTree->Branch("McPartNumRecoHits",        fMcPartNumRecoHits.data(),   "McPartNumRecoHits[NumMcParticles]/I");
+    fAnaTree->Branch("McPartNumUniqueHits",      fMcPartNumUniqueHits.data(), "McPartNumUniqueHits[NumMcParticles]/I");
+    fAnaTree->Branch("McPartNumPFParts",         fMcPartNumPFParts.data(),    "McPartNumPFParts[NumMcParticles]/I");
+    fAnaTree->Branch("McPartBestPFPart",         fMcPartBestPFPart.data(),    "McPartBestPFPart[NumMcParticles]/I");
+    fAnaTree->Branch("McPartPrimary",            fMcPartPrimary.data(),       "McPartPrimary[NumMcParticles]/s");
+    fAnaTree->Branch("McNeutrinoDaughter",       fMcNeutrinoDaughter.data(),  "McNeutrinoDaughter[NumMcParticles]/s");
     
     
     fProcessNameVec.resize(fMaxEntries, "processname  ");
@@ -412,6 +422,20 @@ void PFParticleMcAna::beginJob()
     fAnaTree->Branch("PFPartPCAAxis3DirZ",       fPCAAxis3DirZ.data(),       "PFPartPCAAxis3DirZ[NumMcParticles]/F");
     fAnaTree->Branch("PFCosmicGeoScore",         fPFCosmicGeoScore.data(),   "PFCosmicGeoScore[NumMcParticles]/F");
     fAnaTree->Branch("PFCosmicGeoTag",           fPFCosmicGeoTag.data(),     "PFCosmicGeoTag[NumMcParticles]/F");
+    
+    fCosmicStartX.resize(fMaxEntries, 0.);
+    fCosmicStartY.resize(fMaxEntries, 0.);
+    fCosmicStartZ.resize(fMaxEntries, 0.);
+    fCosmicEndX.resize(fMaxEntries, 0.);
+    fCosmicEndY.resize(fMaxEntries, 0.);
+    fCosmicEndZ.resize(fMaxEntries, 0.);
+    
+    fAnaTree->Branch("PFCosmicStartX",           fCosmicStartX.data(),       "PFCosmicStartX[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicStartY",           fCosmicStartY.data(),       "PFCosmicStartY[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicStartZ",           fCosmicStartZ.data(),       "PFCosmicStartZ[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicEndX",             fCosmicEndX.data(),         "PFCosmicEndX[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicEndY",             fCosmicEndY.data(),         "PFCosmicEndY[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicEndZ",             fCosmicEndZ.data(),         "PFCosmicEndZ[NumMcParticles]/F");
     
     fTrackID.resize(fMaxEntries, -1);
     fNumKTracks.resize(fMaxEntries, 0);
@@ -525,6 +549,7 @@ void PFParticleMcAna::PrepareEvent(const art::Event &evt, int numColumns)
     fMcPartTrackID.assign(maxEntries, 0);
     fMcParentTrackID.assign(maxEntries, -1.);
     fMcPartNumRecoHits.assign(maxEntries, 0);
+    fMcPartNumUniqueHits.assign(maxEntries, 0);
     fMcPartNumPFParts.assign(maxEntries, 0);
     fMcPartBestPFPart.assign(maxEntries, 0);
     fMcPartPrimary.assign(maxEntries, 0);
@@ -558,6 +583,13 @@ void PFParticleMcAna::PrepareEvent(const art::Event &evt, int numColumns)
     fPCAAxis3DirZ.assign(maxEntries, 0.);
     fPFCosmicGeoScore.assign(maxEntries, 0.);
     fPFCosmicGeoTag.assign(maxEntries, 0.);
+    
+    fCosmicStartX.assign(maxEntries, 0.);
+    fCosmicStartY.assign(maxEntries, 0.);
+    fCosmicStartZ.assign(maxEntries, 0.);
+    fCosmicEndX.assign(maxEntries, 0.);
+    fCosmicEndY.assign(maxEntries, 0.);
+    fCosmicEndZ.assign(maxEntries, 0.);
     
     // Associated reco track information
     fTrackID.assign(maxEntries, -1);
@@ -722,9 +754,18 @@ void PFParticleMcAna::analyze(const art::Event& event)
         
         // Let's get the total number of "true" hits that are created by this MCParticle
         // Count number of hits in each view
-        int nTrueMcHits(0);
+        size_t nTrueMcHits(0);
+        size_t nUniqueTrueMcHits(0);
         
-        if (particleToHitItr != particleToHitMap.end())  nTrueMcHits = particleToHitItr->second.size();
+        if (particleToHitItr != particleToHitMap.end())
+        {
+            nTrueMcHits = particleToHitItr->second.size();
+            
+            for(const auto& hit : particleToHitItr->second)
+            {
+                if (hitToParticleMap[hit].size() < 2) nUniqueTrueMcHits++;
+            }
+        }
         
         // It is pointless to go through the rest of the loop if there are no hits to analyze
         if (nTrueMcHits < 1) continue;
@@ -819,6 +860,8 @@ void PFParticleMcAna::analyze(const art::Event& event)
         TVector3            pcaxis1Dir(0.,0.,1.);
         TVector3            pcaxis2Dir(0.,0.,1.);
         TVector3            pcaxis3Dir(0.,0.,1.);
+        TVector3            pfCosmicStart(0.,0.,0.);
+        TVector3            pfCosmicEnd(0.,0.,0.);
         
         int                 nTotalTrackHits(0);
         int                 bestKTrackCnt(0);
@@ -1018,6 +1061,9 @@ void PFParticleMcAna::analyze(const art::Event& event)
                     
                         pfCosmicTagVal  = cosmicTag->CosmicScore();
                         pfCosmicTypeVal = cosmicTag->CosmicType();
+                        
+                        pfCosmicStart   = TVector3(cosmicTag->EndPoint1()[0],cosmicTag->EndPoint1()[1],cosmicTag->EndPoint1()[2]);
+                        pfCosmicEnd     = TVector3(cosmicTag->EndPoint2()[0],cosmicTag->EndPoint2()[1],cosmicTag->EndPoint2()[2]);
                     }
                 }
                 
@@ -1049,31 +1095,32 @@ void PFParticleMcAna::analyze(const art::Event& event)
         // Start with MC...
         if (fNumMcParticles < fMaxEntries)
         {
-            fPDGCode[fNumMcParticles]            = trackPDGCode;
-            fMcPartStartX[fNumMcParticles]       = mcstart.X();
-            fMcPartStartY[fNumMcParticles]       = mcstart.Y();
-            fMcPartStartZ[fNumMcParticles]       = mcstart.Z();
-            fMcPartStartDirX[fNumMcParticles]    = mcstartmom.X();
-            fMcPartStartDirY[fNumMcParticles]    = mcstartmom.Y();
-            fMcPartStartDirZ[fNumMcParticles]    = mcstartmom.Z();
-            fMcPartEndX[fNumMcParticles]         = mcend.X();
-            fMcPartEndY[fNumMcParticles]         = mcend.Y();
-            fMcPartEndZ[fNumMcParticles]         = mcend.Z();
-            fMcPartEndDirX[fNumMcParticles]      = mcendmom.X();
-            fMcPartEndDirY[fNumMcParticles]      = mcendmom.Y();
-            fMcPartEndDirZ[fNumMcParticles]      = mcendmom.Z();
-            fMcPartEne[fNumMcParticles]          = particle->E();
-            fMcPartMass[fNumMcParticles]         = particle->Mass();
-            fMcPartTrackLen[fNumMcParticles]     = mcTrackLen;
-            fMcPartTrackID[fNumMcParticles]      = particleTrackID;
-            fMcParentTrackID[fNumMcParticles]    = parentTrackIdx;
-            fMcPartNumRecoHits[fNumMcParticles]  = nTrueMcHits;
-            fMcPartNumPFParts[fNumMcParticles]   = numPFParticles;
-            fMcPartBestPFPart[fNumMcParticles]   = bestPFParticleID;
-            fProcessNameVec[fNumMcParticles]     = process;
-            fParProcNameVec[fNumMcParticles]     = parentProcess;
-            fMcPartPrimary[fNumMcParticles]      = isPrimary;
-            fMcNeutrinoDaughter[fNumMcParticles] = isNeutrino;
+            fPDGCode[fNumMcParticles]             = trackPDGCode;
+            fMcPartStartX[fNumMcParticles]        = mcstart.X();
+            fMcPartStartY[fNumMcParticles]        = mcstart.Y();
+            fMcPartStartZ[fNumMcParticles]        = mcstart.Z();
+            fMcPartStartDirX[fNumMcParticles]     = mcstartmom.X();
+            fMcPartStartDirY[fNumMcParticles]     = mcstartmom.Y();
+            fMcPartStartDirZ[fNumMcParticles]     = mcstartmom.Z();
+            fMcPartEndX[fNumMcParticles]          = mcend.X();
+            fMcPartEndY[fNumMcParticles]          = mcend.Y();
+            fMcPartEndZ[fNumMcParticles]          = mcend.Z();
+            fMcPartEndDirX[fNumMcParticles]       = mcendmom.X();
+            fMcPartEndDirY[fNumMcParticles]       = mcendmom.Y();
+            fMcPartEndDirZ[fNumMcParticles]       = mcendmom.Z();
+            fMcPartEne[fNumMcParticles]           = particle->E();
+            fMcPartMass[fNumMcParticles]          = particle->Mass();
+            fMcPartTrackLen[fNumMcParticles]      = mcTrackLen;
+            fMcPartTrackID[fNumMcParticles]       = particleTrackID;
+            fMcParentTrackID[fNumMcParticles]     = parentTrackIdx;
+            fMcPartNumRecoHits[fNumMcParticles]   = nTrueMcHits;
+            fMcPartNumUniqueHits[fNumMcParticles] = nUniqueTrueMcHits;
+            fMcPartNumPFParts[fNumMcParticles]    = numPFParticles;
+            fMcPartBestPFPart[fNumMcParticles]    = bestPFParticleID;
+            fProcessNameVec[fNumMcParticles]      = process;
+            fParProcNameVec[fNumMcParticles]      = parentProcess;
+            fMcPartPrimary[fNumMcParticles]       = isPrimary;
+            fMcNeutrinoDaughter[fNumMcParticles]  = isNeutrino;
             
             fNumMcParticles++;
         }
@@ -1106,6 +1153,12 @@ void PFParticleMcAna::analyze(const art::Event& event)
             fPFCosmicGeoScore[fNumPFParticles]   = pfCosmicTagVal;
             fPFCosmicGeoTag[fNumPFParticles]     = pfCosmicTypeVal;
             
+            fCosmicStartX[fNumPFParticles]       = pfCosmicStart.X();
+            fCosmicStartY[fNumPFParticles]       = pfCosmicStart.Y();
+            fCosmicStartZ[fNumPFParticles]       = pfCosmicStart.Z();
+            fCosmicEndX[fNumPFParticles]         = pfCosmicEnd.X();
+            fCosmicEndY[fNumPFParticles]         = pfCosmicEnd.Y();
+            fCosmicEndZ[fNumPFParticles]         = pfCosmicEnd.Z();
             
             if (tTrack)
             {
