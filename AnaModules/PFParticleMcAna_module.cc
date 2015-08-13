@@ -232,6 +232,9 @@ private:
     std::vector<Float_t>     fPCAAxis3DirY;
     std::vector<Float_t>     fPCAAxis3DirZ;
     
+    std::vector<Float_t>     fPFCompositeScore;
+    std::vector<Float_t>     fPFCompositeTag;
+    
     std::vector<Float_t>     fPFCosmicGeoScore;
     std::vector<Float_t>     fPFCosmicGeoTag;
     
@@ -798,6 +801,12 @@ void PFParticleMcAna::analyze(const art::Event& event)
         // Apparently it can happen that we completely miss the TPC
         if (mcTrackLen == 0.) continue;
         
+//        if (mcTrackLen > 0.3 || nTrueMcHits > 3)
+//        {
+//            std::cout << "****>> Number true hits: " << nTrueMcHits << ", range: " << mcTrackLen << std::endl;
+//            std::cout << *particle << std::endl;
+//        }
+        
         // Set the momentum vector to a unit direction vector
         if (mcstartmom.Mag() > 0.) mcstartmom.SetMag(1.);
         if (mcendmom.Mag()   > 0.) mcendmom.SetMag(1.);
@@ -900,7 +909,7 @@ void PFParticleMcAna::analyze(const art::Event& event)
                             if (parentIDToPFParticleItr != trackIDToPFParticleMap.end()) topParticleTrackID = parentId;
                         }
                     }
-                    else std::cout << *particle << std::endl;
+                    //else std::cout << *particle << std::endl;
                 }
             }
             
@@ -1225,8 +1234,16 @@ void PFParticleMcAna::MakeHitParticleMaps(const std::vector<sim::MCHitCollection
         {
             const std::vector<sim::MCHit>& mcHitVec = mcHitCollectionVec[channel];
             
-            int start_tdc = timeService->TPCTick2TDC( hit.StartTick() );
-            int end_tdc   = timeService->TPCTick2TDC( hit.EndTick()   );
+            //int start_tdc = timeService->TPCTick2TDC( hit.StartTick() );
+            //int end_tdc   = timeService->TPCTick2TDC( hit.EndTick()   );
+            
+            int start_tdc    = timeService->TPCTick2TDC( hit.StartTick() );
+            int end_tdc      = timeService->TPCTick2TDC( hit.EndTick()   );
+            int hitStart_tdc = timeService->TPCTick2TDC( hit.PeakTime() - 3.*hit.SigmaPeakTime() );
+            int hitEnd_tdc   = timeService->TPCTick2TDC( hit.PeakTime() + 3.*hit.SigmaPeakTime() );
+            
+            start_tdc = std::max(start_tdc, hitStart_tdc);
+            end_tdc   = std::min(end_tdc,   hitEnd_tdc  );
             
             sim::MCHit startTime;
             sim::MCHit endTime;
@@ -1239,9 +1256,29 @@ void PFParticleMcAna::MakeHitParticleMaps(const std::vector<sim::MCHitCollection
             
             if (startItr != mcHitVec.end())
             {
+                double totCharge = 0.;
+//                size_t itrDist   = std::distance(startItr, endItr);
+                
+                for(auto tmpItr = startItr; tmpItr != endItr; tmpItr++) totCharge += (*tmpItr).Charge();
+                
+                if (!(totCharge > 0.))
+                {
+//                    std::cout << "******** zero charge hit? *******" << std::endl;
+//                    std::cout << hit << std::endl;
+                    continue;
+                }
+                
                 while(startItr != endItr)
                 {
-                    int trackID = (*startItr++).PartTrackId();
+                    double fracCharge = (*startItr).Charge() / totCharge;
+                    int    trackID    = (*startItr++).PartTrackId();
+                    
+                    // skip if no real contribution to the charge?
+                    if (fracCharge < 0.01)
+                    {
+//                        std::cout << ">>>> skipping due to low fraction charge contribution: " << hit.SummedADC() << ", " << totCharge << ", " << fracCharge << ", " << itrDist << std::endl;
+                        continue;
+                    }
                     
                     if (trackID < 0)
                     {
