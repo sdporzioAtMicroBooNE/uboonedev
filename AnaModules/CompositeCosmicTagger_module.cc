@@ -43,13 +43,11 @@
 
 #include "TVector3.h"
 
+
 namespace cosmic
 {
     class CompositeCosmicTagger;
-    class SpacePoint;
-    class Track;
 }
-
 
 class cosmic::CompositeCosmicTagger : public art::EDProducer
 {
@@ -64,7 +62,9 @@ public:
     void endJob() override;
 
 private:
-
+    // Forward declaration of object to handle sorting of PFParticles associated to Track IDs
+    class SortTrackVec;
+    
     std::string fPFParticleModuleLabel;
     std::string fPCAxisModuleLabel;
     std::string fTrackModuleLabel;
@@ -88,6 +88,26 @@ cosmic::CompositeCosmicTagger::~CompositeCosmicTagger()
 {
     // Clean up dynamic memory and other resources here.
 }
+
+// This will be used to sort PFParticles in the map below
+class cosmic::CompositeCosmicTagger::SortTrackVec
+{
+    /**
+     * @brief This is used to sort "Hough Clusters" by the maximum entries in a bin
+     */
+public:
+    SortTrackVec() {}
+    
+    bool operator()(const art::Ptr<recob::Track>& left, const art::Ptr<recob::Track>& right)
+    {
+//        size_t numHitsLeft  = fPFPartCntMap.at(left);
+//        size_t numHitsRight = fPFPartCntMap.at(right);
+        
+        return left->NumberTrajectoryPoints() > right->NumberTrajectoryPoints();
+    }
+private:
+//    const PFParticleMcAna::PFParticleHitCntMap& fPFPartCntMap;
+};
 
 void cosmic::CompositeCosmicTagger::produce(art::Event & evt)
 {
@@ -194,9 +214,66 @@ void cosmic::CompositeCosmicTagger::produce(art::Event & evt)
                     float lowCosmicTagScore(100.);
                     float lowFlashTagScore(100.);
                     
+                    // Let's sort the tracks so we can be sure the longest is the first
+                    std::sort(trackVec.begin(), trackVec.end(), SortTrackVec());
+                    
+                    // Recover pointing of first track
+                    TVector3 firstTrackStartPos = trackVec.front()->Vertex();
+                    TVector3 firstTrackEndPos   = trackVec.front()->End();
+                    TVector3 firstTrackStartDir = trackVec.front()->VertexDirection();
+                    
+                    int firstTrackHitCnt(trackVec.front()->NumberTrajectoryPoints());
+                    
+                    // poor man's vertexing... just keep track of two closest tracks
+                    double trackMatchDist(1000.);
+                    double cosThetaMatch(1.);
+                    int    trackCnt(0);
+                    
+                    int minHitCnt = std::max(10, std::min(75,int(firstTrackHitCnt/5)));
+                    
                     // Loop over tracks
                     for(auto& track : trackVec)
                     {
+                        // Tracks are ordered so if we get a run we're done
+                        int curTrackHitCnt(track->NumberTrajectoryPoints());
+                        
+                        if (curTrackHitCnt < minHitCnt) break;
+                        
+                        if (trackCnt++)
+                        {
+                            TVector3 endPointDiff = track->Vertex() - firstTrackStartPos;
+                            
+                            if (endPointDiff.Mag() < trackMatchDist)
+                            {
+                                trackMatchDist = endPointDiff.Mag();
+                                cosThetaMatch  = fabs(firstTrackStartDir.Dot(track->VertexDirection()));
+                            }
+                            
+                            endPointDiff = track->Vertex() - firstTrackEndPos;
+                            
+                            if (endPointDiff.Mag() < trackMatchDist)
+                            {
+                                trackMatchDist = endPointDiff.Mag();
+                                cosThetaMatch  = fabs(firstTrackStartDir.Dot(track->VertexDirection()));
+                            }
+                            
+                            endPointDiff = track->End() - firstTrackStartPos;
+                            
+                            if (endPointDiff.Mag() < trackMatchDist)
+                            {
+                                trackMatchDist = endPointDiff.Mag();
+                                cosThetaMatch  = fabs(firstTrackStartDir.Dot(track->VertexDirection()));
+                            }
+                            
+                            endPointDiff = track->End() - firstTrackEndPos;
+                            
+                            if (endPointDiff.Mag() < trackMatchDist)
+                            {
+                                trackMatchDist = endPointDiff.Mag();
+                                cosThetaMatch  = fabs(firstTrackStartDir.Dot(track->VertexDirection()));
+                            }
+                        }
+                        
                         // Recover CosmicTag and process
                         std::vector<art::Ptr<anab::CosmicTag>> tkCosmicTagVec = tkCosmicTagAssnVec.at(track.key());
                 
@@ -234,13 +311,15 @@ void cosmic::CompositeCosmicTagger::produce(art::Event & evt)
                     if (cosmicScore > 0.4)
                     {
                         std::cout << "Track: " << pfParticle.key() << " has cosmicScore: " << cosmicScore;
-                        if (lowCosmicTagScore < 0.5)                            cosmicScore = 0.2;
-                        else if (trackVec.size() > 1 && lowCosmicTagScore < 1.) cosmicScore = 0.3;
+                        
+                        if (lowCosmicTagScore < 0.5) cosmicScore = 0.2;
+                        else if (trackCnt > 1 && trackMatchDist < 10. && cosThetaMatch < 0.97 && lowCosmicTagScore < 1.)
+                            cosmicScore = 0.3;
+                        
                         std::cout << ", # tracks: " << trackVec.size() << ", lowCosmicTagScore: " << lowCosmicTagScore << ", new: " << cosmicScore << std::endl;
                     }
                 }
             }
-            
         }
         
         std::vector<float> endPt1;
