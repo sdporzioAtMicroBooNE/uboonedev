@@ -23,6 +23,7 @@
 #include "RawData/RawDigit.h"
 #include "RawData/raw.h"
 #include "RecoBase/Hit.h"
+#include "CalibrationDBI/WebDBI/DetPedestalRetrievalAlg.h"
 
 //#include "cetlib/search_path.h"
 #include "cetlib/cpu_timer.h"
@@ -104,8 +105,8 @@ private:
     // The parameters we'll read from the .fcl file.
     std::string fDigitModuleLabel;           // The name of the producer that created raw digits
     std::string fHitProducerLabel;
-    bool        fUseChannelPedestals;        // Use channel-by-channel pedestals
     bool        fWritePedestals;             // Output new file of pedestals
+    float       fTruncMeanFraction;          // Fraction for truncated mean
 
     // Pointers to the histograms we'll create.
     TH1D*     fAdcCntHist[3];
@@ -139,12 +140,12 @@ private:
     int fSubRun;
     int fNumEvents;
     
-    std::vector<short>  fPedestalVec;
-    std::vector<double> fChannelPedVec;
+    std::vector<std::vector<double>> fChannelPedVec;
 
     // Other variables that will be shared between different methods.
     art::ServiceHandle<geo::Geometry>            fGeometry;       // pointer to Geometry service
     art::ServiceHandle<util::DetectorProperties> fDetectorProperties;
+    lariov::DetPedestalRetrievalAlg              fPedestalRetrievalAlg; ///< Keep track of an instance to the pedestal retrieval alg
 
     double                                       fElectronsToGeV; // conversion factor
 
@@ -158,7 +159,9 @@ private:
 //-----------------------------------------------------------------------
 // Constructor
 LArRawDigitAna::LArRawDigitAna(fhicl::ParameterSet const& parameterSet)
-    : EDAnalyzer(parameterSet)
+    : EDAnalyzer(parameterSet),
+      fPedestalRetrievalAlg(parameterSet.get<fhicl::ParameterSet>("DetPedestalRetrievalAlg"))
+
 {
     // Read in the parameters from the .fcl file.
     this->reconfigure(parameterSet);
@@ -221,9 +224,9 @@ void LArRawDigitAna::beginJob()
     fSigmaPeakTime[0]  = tfs->make<TH1D>("SigPeak0",     "; sigma(ticks)", 100, 0.,  20.);
     fSigmaPeakTime[1]  = tfs->make<TH1D>("SigPeak1",     "; sigma(ticks)", 100, 0.,  20.);
     fSigmaPeakTime[2]  = tfs->make<TH1D>("SigPeak2",     "; sigma(ticks)", 100, 0.,  20.);
-    fHitIndex[0]       = tfs->make<TH1D>("HitIndex0",    "; index",         10, 0.,  10.);
-    fHitIndex[1]       = tfs->make<TH1D>("HitIndex1",    "; index",         10, 0.,  10.);
-    fHitIndex[2]       = tfs->make<TH1D>("HitIndex2",    "; index",         10, 0.,  10.);
+    fHitIndex[0]       = tfs->make<TH1D>("HitIndex0",    "; index",         20, 0.,  20.);
+    fHitIndex[1]       = tfs->make<TH1D>("HitIndex1",    "; index",         20, 0.,  20.);
+    fHitIndex[2]       = tfs->make<TH1D>("HitIndex2",    "; index",         20, 0.,  20.);
     fROIlength[0]      = tfs->make<TH1D>("ROIlen0",      "; # bins",       200, 0., 200.);
     fROIlength[1]      = tfs->make<TH1D>("ROIlen1",      "; # bins",       200, 0., 200.);
     fROIlength[2]      = tfs->make<TH1D>("ROIlen2",      "; # bins",       200, 0., 200.);
@@ -257,41 +260,7 @@ void LArRawDigitAna::beginJob()
     // Set up our channel pedestal vec (for output) if needed
     fChannelPedVec.clear();
     
-    if (fWritePedestals) fChannelPedVec.resize(fGeometry->Nchannels(), 0.);
-    
-    // Set up our channel by channel pedestals if requested
-    fPedestalVec.clear();
-    
-    if (fUseChannelPedestals)
-    {
-        fPedestalVec.resize(fGeometry->Nchannels(), 0.);
-
-        std::ifstream pedestalFile("pedestalRaw.txt");
-        
-        size_t totalCount(0);
-        int    channel;
-        float  pedestal;
-        
-        while(pedestalFile >> channel >> pedestal)
-        {
-            fPedestalVec[channel] = short(pedestal+0.5);
-            totalCount++;
-            
-            if (totalCount < 200) std::cout << "Read channel, pedestal: " << channel << ", " << pedestal << ", storing: " << fPedestalVec[channel] << std::endl;
-        }
-        
-        if (totalCount != fGeometry->Nchannels())
-        {
-            std::cout << "Did not read back correct number of channels..." << totalCount << std::endl;
-        }
-        
-        pedestalFile.close();
-    }
-    else
-    {
-        fPedestalVec.resize(4800, 2045);                   // Set pedestal value for the U/V planes
-        fPedestalVec.resize(fGeometry->Nchannels(), 473);  // Set the pedestal value for the W plane
-    }
+    if (fWritePedestals) fChannelPedVec.resize(fGeometry->Nchannels());
 }
    
 //-----------------------------------------------------------------------
@@ -309,10 +278,10 @@ void LArRawDigitAna::reconfigure(fhicl::ParameterSet const& p)
 {
     // Read parameters from the .fcl file. The names in the arguments
     // to p.get<TYPE> must match names in the .fcl file.
-    fDigitModuleLabel    = p.get< std::string >("DigitModuleLabel",    "daq");
+    fDigitModuleLabel    = p.get< std::string >("DigitModuleLabel",    "daq"  );
     fHitProducerLabel    = p.get< std::string >("HitModuleLabel",      "gauss");
-    fUseChannelPedestals = p.get<bool>         ("UseChannelPedestals", false);
-    fWritePedestals      = p.get<bool>         ("WritePedestals",      false);
+    fWritePedestals      = p.get<bool>         ("WritePedestals",      false  );
+    fTruncMeanFraction   = p.get<float>        ("TruncMeanFraction",   0.2    );
     
     return;
 }
@@ -329,6 +298,7 @@ void LArRawDigitAna::analyze(const art::Event& event)
     
     std::cout << "LArRawdigitAna - run/subrun/event: " << fRun << "/" << fSubRun << "/" << fEvent << std::endl;
     std::cout << "Geomtry expects " << fGeometry->Nwires(0) << " U wires, " << fGeometry->Nwires(1) << " V wires, " << fGeometry->Nwires(2) << std::endl;
+    std::cout << event.time().value() << std::endl;
     
     // Read in the digit List object(s).
     art::Handle< std::vector<raw::RawDigit> > digitVecHandle;
@@ -342,14 +312,8 @@ void LArRawDigitAna::analyze(const art::Event& event)
     raw::ChannelID_t channel     = raw::InvalidChannelID; // channel number
     unsigned int     maxChannels = fGeometry->Nchannels();
     
-    // Define vectors to hold info
-    std::vector<int>    channelHitVec;
-    std::vector<double> channelAveVec;
-    std::vector<double> channelRmsVec;
-    
-    channelHitVec.resize(maxChannels, 0);
-    channelAveVec.resize(maxChannels, 0.);
-    channelRmsVec.resize(maxChannels, 0.);
+    //Update the pedestals here
+    fPedestalRetrievalAlg.Update(event);
     
     // Define eyeball pedestals for raw adcs
     //short int pedestals[] = {2045, 2045, 473};
@@ -376,7 +340,9 @@ void LArRawDigitAna::analyze(const art::Event& event)
             //std::cout << "===>> Found illegal channel with id: " << channel << std::endl;
             goodChan = false;
         }
-        
+
+        // ********************************************************************************
+        // Handle out of range channels
         if (channel >= maxChannels || !goodChan)
         {
             std::cout << "***>> Found channel at edge of allowed: " << channel << ", maxChannel: " << maxChannels << std::endl;
@@ -388,7 +354,7 @@ void LArRawDigitAna::analyze(const art::Event& event)
             
             // And now uncompress
             raw::Uncompress(digitVec->ADCs(), rawadc, digitVec->Compression());
-            
+
             int    adcCnt   = 0;
             double aveVal   = 0.;
             double rmsVal   = 0.;
@@ -425,6 +391,7 @@ void LArRawDigitAna::analyze(const art::Event& event)
             
             continue;
         }
+        // ********************************************************************************
         
         // Recover plane and wire in the plane
         unsigned int view = wids[0].Plane;
@@ -437,70 +404,141 @@ void LArRawDigitAna::analyze(const art::Event& event)
         
         // And now uncompress
         raw::Uncompress(digitVec->ADCs(), rawadc, digitVec->Compression());
+/*
+        // Make a copy of the above to do a truncated mean with
+        std::vector<short> rawAdcVec = rawadc;
+
+        // Sort it to get smallest to largest
+        std::sort(rawAdcVec.begin(),rawAdcVec.end());
         
-        int    adcCnt   = 0;
-        double aveVal   = 0.;
-        double rmsVal   = 0.;
-        short  pedestal = fPedestalVec[channel];
+        // Drop 20% of hits -> determine 10% of total dataSize
+        size_t numToDrop = 0.5 * fTruncMeanFraction * dataSize;
         
-        // Loop over the data to get the mean using the eyeball pedestals
-        for(size_t bin = 0; bin < dataSize; ++bin)
+        // Set up for truncated mean
+        double truncMean = 0.;
+        
+        // Get mean of remaining values
+        for(size_t idx = numToDrop; idx < dataSize - numToDrop; idx++)
         {
-            float rawAdcLessPed = rawadc[bin] - pedestal;
-            
-            adcCnt++;
-            aveVal += rawAdcLessPed;
+            truncMean += rawAdcVec[idx];
         }
         
-        aveVal /= double(adcCnt);
+        truncMean /= double(dataSize - 2 * numToDrop);
+*/
+        // Try centering on most popular bin
+        std::map<short,short> binAdcMap;
         
-        std::vector<float> adcDiffVec;
+        for(const auto& adcVal : rawadc)
+        {
+            binAdcMap[adcVal]++;
+        }
         
-        adcDiffVec.resize(dataSize, 0.);
+        // Find the max bin
+        short binMax(-1);
+        short binMaxCnt(0);
+        
+        for(const auto& binAdcItr : binAdcMap)
+        {
+            if (binAdcItr.second > binMaxCnt)
+            {
+                binMax    = binAdcItr.first;
+                binMaxCnt = binAdcItr.second;
+            }
+        }
+        
+        int minNumBins = (1. - fTruncMeanFraction) * dataSize;
+        int curBinCnt(binMaxCnt);
+        
+        double peakValue(curBinCnt * binMax);
+        double truncMean(peakValue);
+        
+        short binOffset(1);
+        
+        while(curBinCnt < minNumBins)
+        {
+            if (binAdcMap[binMax-binOffset])
+            {
+                curBinCnt += binAdcMap[binMax-binOffset];
+                truncMean += binAdcMap[binMax-binOffset] * (binMax - binOffset);
+            }
+            
+            if (binAdcMap[binMax+binOffset])
+            {
+                curBinCnt += binAdcMap[binMax+binOffset];
+                truncMean += binAdcMap[binMax+binOffset] * (binMax + binOffset);
+            }
+            
+            binOffset++;
+        }
+        
+        truncMean /= double(curBinCnt);
+        
+        binOffset  = 1;
+        
+        int    rmsBinCnt(binMaxCnt);
+        double rmsVal(double(binAdcMap[binMax])*(double(binMax)-truncMean));
+        
+        rmsVal *= rmsVal;
+        
+        while(rmsBinCnt < minNumBins)
+        {
+            if (binAdcMap[binMax-binOffset] > 0)
+            {
+                double binVals = double(binAdcMap[binMax-binOffset]) * (double(binMax - binOffset) - truncMean);
+                
+                rmsBinCnt += binAdcMap[binMax-binOffset];
+                rmsVal    += binVals * binVals;
+            }
+            
+            if (binAdcMap[binMax+binOffset] > 0)
+            {
+                double binVals = double(binAdcMap[binMax+binOffset]) * (double(binMax + binOffset) - truncMean);
+                
+                rmsBinCnt += binAdcMap[binMax+binOffset];
+                rmsVal    += binVals * binVals;
+            }
+            
+            binOffset++;
+        }
+        
+        rmsVal = std::sqrt(std::max(0.,rmsVal / double(rmsBinCnt)));
+        
+/*
+        double rmsVal(0.);
         
         // Go through again to get the rms
-        for(size_t bin = 0; bin < dataSize; ++bin)
+        for(size_t bin = numToDrop; bin < dataSize-numToDrop; ++bin)
         {
-            float rawAdcLessPed = rawadc[bin]   - pedestal;
-            float adcDiff       = rawAdcLessPed - aveVal;
+            float rawAdcVal = rawAdcVec[bin];
+            float adcDiff   = rawAdcVal - truncMean;
             
             rmsVal += adcDiff * adcDiff;
-            
-            adcDiffVec[bin] = adcDiff;
         }
         
-        rmsVal = std::sqrt(rmsVal/double(adcCnt));
-        
-        channelHitVec[channel] = adcCnt;
-        channelAveVec[channel] = aveVal;
-        channelRmsVec[channel] = rmsVal;
+        rmsVal = std::sqrt(rmsVal/double(dataSize - 2 * numToDrop - 1));
         
         rmsVal = std::min(rmsVal, 99.9);
+*/
+        // Set up to process the rawadc
+        lariov::DetPedestal detPedestal = fPedestalRetrievalAlg.Pedestal(channel);
+        float               pedestal    = detPedestal.PedMean();
 
         // Fill some histograms here
-        fAdcCntHist[view]->Fill(adcCnt,    1.);
-        fAveValHist[view]->Fill(aveVal,    1.);
-        fRmsValHist[view]->Fill(rmsVal,    1.);
+        fAveValHist[view]->Fill(std::max(-29.9, std::min(29.9,truncMean - pedestal)), 1.);
+        fRmsValHist[view]->Fill(rmsVal,       1.);
         fRmsValProf[view]->Fill(wire, rmsVal, 1.);
         
         // If we are outputting a pedestal file then do the work for that here
         if (fWritePedestals)
         {
-            std::sort(adcDiffVec.begin(), adcDiffVec.end(), std::less<float>());
+            fPedValHist[view]->Fill(truncMean, 1.);
             
-            size_t maxBin = 0.90 * dataSize;
-            float  aveRawAdc(0.);
-            
-            for(size_t bin = 0; bin < maxBin; bin++)
-            {
-                aveRawAdc += adcDiffVec[bin] + aveVal + pedestal;
-            }
-            
-            aveRawAdc /= float(maxBin);
-            
-            fPedValHist[view]->Fill(aveRawAdc, 1.);
-            
-            fChannelPedVec[channel] += aveRawAdc;
+            fChannelPedVec[channel].push_back(truncMean);
+        }
+        
+        if (abs(truncMean - pedestal) > 5)
+        {
+            std::cout << ">>> Pedestal mismatch, channel: " << channel << ", new value: " << truncMean << ", original: " << pedestal << std::endl;
         }
 /*
         // Short aside to look at FFT
@@ -613,21 +651,22 @@ void LArRawDigitAna::analyze(const art::Event& event)
             {
                 art::Ptr<recob::Hit> hitPtr(hitHandle, rdIter);
                 
-                double pulseHeight   = std::min(float(250.),  hitPtr->PeakAmplitude());
-                double RMS           = std::min(float(20.),   hitPtr->RMS());
-                double sigmaPeakTime = std::min(float(20.),   hitPtr->SigmaPeakTime());
-                double roiLength     = std::min(double(200.), double(hitPtr->EndTick() - hitPtr->StartTick()));
-                double chi2          = std::min(float(100.),  hitPtr->GoodnessOfFit());
+                double pulseHeight   = std::min(float(249.),  hitPtr->PeakAmplitude());
+                double RMS           = std::min(float(19.9),  hitPtr->RMS());
+                double sigmaPeakTime = std::min(float(19.9),  hitPtr->SigmaPeakTime());
+                double roiLength     = std::min(double(199.), double(hitPtr->EndTick() - hitPtr->StartTick()));
+                double chi2          = std::min(float(99.),   hitPtr->GoodnessOfFit());
+                int    hitIndex      = std::min(int(19),      int(hitPtr->LocalIndex()));
                 
                 fHitsByWire[view]->Fill(wire);
                 fPulseHeight[view]->Fill(pulseHeight);
                 fRMS[view]->Fill(RMS);
                 fSigmaPeakTime[view]->Fill(sigmaPeakTime);
-                fHitIndex[view]->Fill(hitPtr->LocalIndex());
+                fHitIndex[view]->Fill(hitIndex);
                 fPHvsRMS[view]->Fill(pulseHeight, RMS);
                 fPHvsSigma[view]->Fill(pulseHeight, sigmaPeakTime);
                 
-                if (hitPtr->LocalIndex() == 0)
+                if (hitIndex == 0)
                 {
                     fROIlength[view]->Fill(roiLength);
                 }
@@ -674,15 +713,25 @@ void LArRawDigitAna::endJob()
         
         for(size_t idx = 0; idx < fGeometry->Nchannels(); idx++)
         {
-            //std::vector<geo::WireID> wids = fGeometry->ChannelToWire(idx);
+            double meanPedestal(0.);
+            double rmsPedestal(0.);
             
-            //pedestalFile << "pedestal[" << idx << "] = " << channelPedVec[idx] << ";\n"; //     view: " << wids[0].Plane << ", wire: " << wids[0].Wire << std::endl;
-            pedestalFile <<  idx << " " << fChannelPedVec[idx]/double(fNumEvents) << "\n"; //     view: " << wids[0].Plane << ", wire: " << wids[0].Wire << std::endl;
+            for(const auto& pedVal : fChannelPedVec[idx])
+            {
+                meanPedestal += pedVal;
+                rmsPedestal  += pedVal*pedVal;
+            }
+            
+            meanPedestal /= double(fChannelPedVec[idx].size());
+            rmsPedestal   = std::max(0.,(rmsPedestal - meanPedestal * meanPedestal) / double(fChannelPedVec[idx].size() - 1));
+            rmsPedestal   = sqrt(rmsPedestal);
+        
+            pedestalFile <<  idx << " " << meanPedestal << " " << rmsPedestal << "\n"; //     view: " << wids[0].Plane << ", wire: " << wids[0].Wire << std::endl;
         }
         
         pedestalFile.close();
     }
-    
+/*
     std::cout << "***************** Wires with no hits **********************" << std::endl;
     
     // Look for channels which did not see any hits
@@ -698,7 +747,7 @@ void LArRawDigitAna::endJob()
             }
         }
     }
-    
+*/
     return;
 }
 
