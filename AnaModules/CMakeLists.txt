@@ -12,6 +12,8 @@ art_make(BASENAME_ONLY
 		     LArProperties_service
 		     OpDigiProperties_service
 		     Utilities
+		     CalibrationDBI_IOVData
+		     CalibrationDBI_WebDBI
 		     ${SIMULATIONBASE}
 		     ${MF_MESSAGELOGGER}
 		     ${MF_UTILITIES}
@@ -37,6 +39,8 @@ art_make(BASENAME_ONLY
                             LArProperties_service
 			    DetectorProperties_service
 			    Utilities
+		     	    CalibrationDBI_IOVData
+		     	    CalibrationDBI_WebDBI
 			    ${MAGNETICFIELD_SERVICE}
 			    ${SIMULATIONBASE}
 			    ${ART_FRAMEWORK_CORE}
