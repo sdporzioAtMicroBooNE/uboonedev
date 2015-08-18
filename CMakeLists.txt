@@ -42,18 +42,19 @@ cet_set_compiler_flags(DIAGS CAUTIOUS
 cet_report_compiler_flags()
 
 # these are minimum required versions, not the actual product versions
-find_ups_product( larsoft       v1_00_00 )
-find_ups_product( larana        v1_00_00 )
-find_ups_product( larcore       v1_00_00 )
-find_ups_product( lardata       v1_00_00 )
-find_ups_product( larevt        v1_00_00 )
-find_ups_product( larsim        v1_00_00 )
-find_ups_product( larreco       v1_00_00 )
-find_ups_product( nutools       v1_00_00 )
-find_ups_product( art           v1_08_00 )
-find_ups_product( artextensions v1_00_01 )
-find_ups_product( cetbuildtools v3_07_00 )
-find_ups_product( postgresql    v9_1_5 )
+find_ups_product( larsoft         v1_00_00 )
+find_ups_product( larana          v1_00_00 )
+find_ups_product( larcore         v1_00_00 )
+find_ups_product( lardata         v1_00_00 )
+find_ups_product( larevt          v1_00_00 )
+find_ups_product( larsim          v1_00_00 )
+find_ups_product( larreco         v1_00_00 )
+find_ups_product( lareventdisplay v1_00_00 )
+find_ups_product( nutools         v1_00_00 )
+find_ups_product( art             v1_08_00 )
+find_ups_product( artextensions   v1_00_01 )
+find_ups_product( cetbuildtools   v3_07_00 )
+find_ups_product( postgresql      v9_1_5 )
 
 cet_check_gcc()
 
@@ -64,6 +65,7 @@ include(BuildPlugins)
 
 # ADD SOURCE CODE SUBDIRECTORIES HERE
 add_subdirectory(AnaModules)
+add_subdirectory(EventDisplay)
 add_subdirectory(uboonedev)
 
 # add the subdirectory for the fcl files
