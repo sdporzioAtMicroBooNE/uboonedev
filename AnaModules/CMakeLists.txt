@@ -13,7 +13,7 @@ art_make(BASENAME_ONLY
 		     OpDigiProperties_service
 		     Utilities
 		     CalibrationDBI_IOVData
-		     CalibrationDBI_WebDBI
+		     CalibrationDBI_Providers
 		     ${SIMULATIONBASE}
 		     ${MF_MESSAGELOGGER}
 		     ${MF_UTILITIES}
@@ -40,7 +40,7 @@ art_make(BASENAME_ONLY
 			    DetectorProperties_service
 			    Utilities
 		     	    CalibrationDBI_IOVData
-		     	    CalibrationDBI_WebDBI
+		     	    CalibrationDBI_Providers
 			    ${MAGNETICFIELD_SERVICE}
 			    ${SIMULATIONBASE}
 			    ${ART_FRAMEWORK_CORE}

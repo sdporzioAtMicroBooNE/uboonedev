@@ -20,7 +20,7 @@ art_make( LIBRARY_NAME  EventDisplayLibs
 			AnalysisBase
 			AnalysisAlg
 		 	CalibrationDBI_IOVData
-			CalibrationDBI_WebDBI
+			CalibrationDBI_Providers
 	                ${SIMULATIONBASE}
 			${EVENTDISPLAYBASE}
                         ${ART_FRAMEWORK_CORE}
