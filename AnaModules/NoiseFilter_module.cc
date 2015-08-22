@@ -129,6 +129,7 @@ void NoiseFilter::produce(art::Event & evt)
             bool   keepHit(false);
             double pulseHeight(hit.PeakAmplitude());
             double RMS(hit.RMS());
+            double roiLength = std::min(double(199.), double(hit.EndTick() - hit.StartTick()));
             
             if (hit.View() == geo::kU)
             {
@@ -152,9 +153,14 @@ void NoiseFilter::produce(art::Event & evt)
                 if (RMS < cutVal) keepHit = true;
             }
             
+            keepHit = roiLength <= 12. && pulseHeight <= 15.;
+            keepHit = RMS > pulseHeight;
+            
             if (keepHit) outputHits->push_back(hit);
         }
     }
+    
+    std::cout << "NoiseFilter - size of input hit collection: " << hitHandle->size() << ", size of output collection: " << outputHits->size() << std::endl;
     
     // Add tracks and associations to event.
     evt.put(std::move(outputHits));
