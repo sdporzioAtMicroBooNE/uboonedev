@@ -23,7 +23,8 @@
 #include "RawData/RawDigit.h"
 #include "RawData/raw.h"
 #include "RecoBase/Hit.h"
-#include "CalibrationDBI/WebDBI/DetPedestalRetrievalAlg.h"
+#include "CalibrationDBI/Interface/IDetPedestalService.h"
+#include "CalibrationDBI/Interface/IDetPedestalProvider.h"
 
 //#include "cetlib/search_path.h"
 #include "cetlib/cpu_timer.h"
@@ -145,7 +146,7 @@ private:
     // Other variables that will be shared between different methods.
     art::ServiceHandle<geo::Geometry>            fGeometry;       // pointer to Geometry service
     art::ServiceHandle<util::DetectorProperties> fDetectorProperties;
-    lariov::DetPedestalRetrievalAlg              fPedestalRetrievalAlg; ///< Keep track of an instance to the pedestal retrieval alg
+    const lariov::IDetPedestalProvider&          fPedestalRetrievalAlg; ///< Keep track of an instance to the pedestal retrieval alg
 
     double                                       fElectronsToGeV; // conversion factor
 
@@ -160,7 +161,7 @@ private:
 // Constructor
 LArRawDigitAna::LArRawDigitAna(fhicl::ParameterSet const& parameterSet)
     : EDAnalyzer(parameterSet),
-      fPedestalRetrievalAlg(parameterSet.get<fhicl::ParameterSet>("DetPedestalRetrievalAlg"))
+      fPedestalRetrievalAlg(art::ServiceHandle<lariov::IDetPedestalService>()->GetPedestalProvider())
 
 {
     // Read in the parameters from the .fcl file.
@@ -311,9 +312,6 @@ void LArRawDigitAna::analyze(const art::Event& event)
     
     raw::ChannelID_t channel     = raw::InvalidChannelID; // channel number
     unsigned int     maxChannels = fGeometry->Nchannels();
-    
-    //Update the pedestals here
-    fPedestalRetrievalAlg.Update(event);
     
     // Define eyeball pedestals for raw adcs
     //short int pedestals[] = {2045, 2045, 473};
@@ -475,27 +473,33 @@ void LArRawDigitAna::analyze(const art::Event& event)
         
         binOffset  = 1;
         
+        
         int    rmsBinCnt(binMaxCnt);
-        double rmsVal(double(binAdcMap[binMax])*(double(binMax)-truncMean));
+        double rmsVal(double(binMax)-truncMean);
         
-        rmsVal *= rmsVal;
+        rmsVal *= double(rmsBinCnt) * rmsVal;
         
+        // Second loop to get the rms
         while(rmsBinCnt < minNumBins)
         {
             if (binAdcMap[binMax-binOffset] > 0)
             {
-                double binVals = double(binAdcMap[binMax-binOffset]) * (double(binMax - binOffset) - truncMean);
+                int    binIdx  = binMax - binOffset;
+                int    binCnt  = binAdcMap[binIdx];
+                double binVals = double(binIdx) - truncMean;
                 
-                rmsBinCnt += binAdcMap[binMax-binOffset];
-                rmsVal    += binVals * binVals;
+                rmsBinCnt += binCnt;
+                rmsVal    += double(binCnt) * binVals * binVals;
             }
             
             if (binAdcMap[binMax+binOffset] > 0)
             {
-                double binVals = double(binAdcMap[binMax+binOffset]) * (double(binMax + binOffset) - truncMean);
+                int    binIdx  = binMax + binOffset;
+                int    binCnt  = binAdcMap[binIdx];
+                double binVals = double(binIdx) - truncMean;
                 
-                rmsBinCnt += binAdcMap[binMax+binOffset];
-                rmsVal    += binVals * binVals;
+                rmsBinCnt += binCnt;
+                rmsVal    += double(binCnt) * binVals * binVals;
             }
             
             binOffset++;
@@ -519,10 +523,10 @@ void LArRawDigitAna::analyze(const art::Event& event)
         
         rmsVal = std::min(rmsVal, 99.9);
 */
+        
         // Set up to process the rawadc
-        lariov::DetPedestal detPedestal = fPedestalRetrievalAlg.Pedestal(channel);
-        float               pedestal    = detPedestal.PedMean();
-
+        float pedestal = fPedestalRetrievalAlg.PedMean(channel);
+        
         // Fill some histograms here
         fAveValHist[view]->Fill(std::max(-29.9, std::min(29.9,truncMean - pedestal)), 1.);
         fRmsValHist[view]->Fill(rmsVal,       1.);
