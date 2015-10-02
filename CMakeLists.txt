@@ -67,6 +67,7 @@ include(BuildPlugins)
 add_subdirectory(AnaModules)
 add_subdirectory(EventDisplay)
 add_subdirectory(uboonedev)
+add_subdirectory(TPCNeutrinoIDFilter)
 
 # add the subdirectory for the fcl files
 add_subdirectory(fcl)
