@@ -10,7 +10,6 @@ art_make(BASENAME_ONLY
 		     Geometry_service
 		     PhotonVisibilityService_service
 		     LArProperties_service
-		     OpDigiProperties_service
 		     Utilities
 		     CalibrationDBI_IOVData
 		     CalibrationDBI_Providers

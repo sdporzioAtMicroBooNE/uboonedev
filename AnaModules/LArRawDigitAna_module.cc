@@ -300,6 +300,13 @@ void LArRawDigitAna::analyze(const art::Event& event)
     std::cout << "LArRawdigitAna - run/subrun/event: " << fRun << "/" << fSubRun << "/" << fEvent << std::endl;
     std::cout << "Geomtry expects " << fGeometry->Nwires(0) << " U wires, " << fGeometry->Nwires(1) << " V wires, " << fGeometry->Nwires(2) << std::endl;
     std::cout << event.time().value() << std::endl;
+    std::cout << "Readout window size: " << fDetectorProperties->ReadOutWindowSize() << ", # time samples: " << fDetectorProperties->NumberTimeSamples() << ", offset: " << fDetectorProperties->TriggerOffset() << std::endl;
+    
+    double detHalfWidth = fGeometry->DetHalfWidth();
+    double lowTicks     = fDetectorProperties->ConvertXToTicks(0., 0,0,0);
+    double hiTicks      = fDetectorProperties->ConvertXToTicks(2.*detHalfWidth, 0,0,0);
+    
+    std::cout << "TPC volume low ticks: " << lowTicks << ", high ticks: " << hiTicks << std::endl;
     
     // Read in the digit List object(s).
     art::Handle< std::vector<raw::RawDigit> > digitVecHandle;
