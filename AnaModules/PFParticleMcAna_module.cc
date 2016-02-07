@@ -21,6 +21,7 @@
 #include "AnalysisBase/CosmicTag.h"
 #include "Utilities/DetectorProperties.h"
 #include "Utilities/LArProperties.h"
+#include "Utilities/TimeService.h"
 #include "Geometry/Geometry.h"
 #include "SimulationBase/MCParticle.h"
 #include "SimulationBase/MCTruth.h"
@@ -98,8 +99,11 @@ private:
                   TVector3& start, TVector3& end, TVector3& startmom, TVector3& endmom,
                   unsigned int tpc = 0, unsigned int cstat = 0);
     
+    // Find distance to nearest TPC boundary
+    double distanceToTPCEdge(const TVector3& position) const;
+    
     // This method is meant to be called at the start of the event
-    void PrepareEvent(const art::Event& evt);
+    void PrepareEvent(const art::Event& evt, int numColumns);
 
     // Useful typedefs to keep from getting lost in stl'ese
     typedef std::map< const recob::Hit*, std::set<int> > HitToParticleMap;    // Maps recob::Hits to track ID's (hence MCParticles)
@@ -113,12 +117,12 @@ private:
                              ParticleToHitMap&                        particleToHitMap);
     
     // More useful typedefs, this time for relating PFParticles to Track IDs and hits
-    typedef std::set<art::Ptr<recob::Hit> >                        Hit2DSet;                   // Need to count only unique hits
-    typedef std::map< int, Hit2DSet >                              TrackIDToHit2DMap;          // Maps Track ID's to lists of hits
-    typedef std::vector<const recob::PFParticle*>                  PFParticleVec;              // Typedef a vector of PFParticles
-    typedef std::map< int, PFParticleVec >                         TrackIDToPFParticleVecMap;  // Maps Track ID's to the PFParticles associated to them
-    typedef std::map<const recob::PFParticle*, TrackIDToHit2DMap > PFParticleToTrackHit2DMap;  // Maps PFParticles to a map of associated Track ID's to their hits
-    typedef std::map<const recob::PFParticle*, int>                PFParticleHitCntMap;        // Allows us to count reco hits per PFParticle directly
+    typedef std::set<art::Ptr<recob::Hit> >                           Hit2DSet;                   // Need to count only unique hits
+    typedef std::map< int, Hit2DSet >                                 TrackIDToHit2DMap;          // Maps Track ID's to lists of hits
+    typedef std::vector<art::Ptr<recob::PFParticle>>                  PFParticleVec;              // Typedef a vector of PFParticles
+    typedef std::map< int, PFParticleVec >                            TrackIDToPFParticleVecMap;  // Maps Track ID's to the PFParticles associated to them
+    typedef std::map<art::Ptr<recob::PFParticle>, TrackIDToHit2DMap > PFParticleToTrackHit2DMap;  // Maps PFParticles to a map of associated Track ID's to their hits
+    typedef std::map<art::Ptr<recob::PFParticle>, int>                PFParticleHitCntMap;        // Allows us to count reco hits per PFParticle directly
 
     // Forward declaration of object to handle sorting of PFParticles associated to Track IDs
     class SortPFParticleVec;
@@ -130,6 +134,23 @@ private:
                             PFParticleToTrackHit2DMap&                          pfParticleToTrackHit2DMap,
                             TrackIDToPFParticleVecMap&                          trackIDtoPFParticleVecMap,
                             PFParticleHitCntMap&                                pfParticleHitCntMap);
+    
+    // Forward declaration of object to handle sorting of PFParticles associated to Track IDs
+    class SortKTrackVec;
+    
+    // More useful typedefs, this time for fit tracks
+    typedef std::vector<art::Ptr<recob::Track>>                  KTrackVec;              // Typedef a vector of PFParticles
+    typedef std::map< int, KTrackVec >                           TrackIDToKTrackVecMap;  // Maps Track ID's to the PFParticles associated to them
+    typedef std::map<art::Ptr<recob::Track>, TrackIDToHit2DMap > KTrackToTrackHit2DMap;  // Maps PFParticles to a map of associated Track ID's to their hits
+    typedef std::map<art::Ptr<recob::Track>, int>                KTrackHitCntMap;        // Allows us to count reco hits per PFParticle directly
+    
+    // Define a function to fill all of the above
+    void MakeKTrackMaps(const art::Event&                              event,
+                        const art::Handle<std::vector<recob::Track> >& trackHandle,
+                        const HitToParticleMap&                        hitToParticleMap,
+                        KTrackToTrackHit2DMap&                         kTrackToTrackHit2DMap,
+                        TrackIDToKTrackVecMap&                         trackIDtoKTrackVecMap,
+                        KTrackHitCntMap&                               kTrackHitCntMap);
 
     // The parameters we'll read from the .fcl file.
     std::string fSimulationProducerLabel;    //> The name of the producer that tracked simulated particles through the detector
@@ -138,14 +159,12 @@ private:
     std::string fHitProducerLabel;           //> The name of the producer that created hits
     std::string fClusterProducerLabel;       //> The name of the producer that created clusters
     std::string fTrackProducerLabel;         //> The name of the producer that created the tracks
+    std::string fPFCosmicProducerLabel;      //> The name of the producer that created the PFParticle cosmic tags
     std::string fCosmicProducerLabel;        //> The name of the producer that created cosmic tags
     std::string fFlashProducerLabel;         //> The name of the producer that created flash tags
-    int fSelectedPDG;                        //> PDG code of particle we'll focus on
-
-    // Pointers to the histograms we'll create. 
 
     // Maximum number of entries per row in our tuple
-    int      fMaxEntries;
+    int         fMaxEntries;
     
     // The variables that will go into the n-tuple.
     // Start with basic run information
@@ -160,73 +179,102 @@ private:
     
     // Monte Carlo information
     Int_t    fNumMcParticles;
-    std::vector<Int_t>   fPDGCode;
-    std::vector<Float_t> fMcPartStartX;
-    std::vector<Float_t> fMcPartStartY;
-    std::vector<Float_t> fMcPartStartZ;
-    std::vector<Float_t> fMcPartStartDirX;
-    std::vector<Float_t> fMcPartStartDirY;
-    std::vector<Float_t> fMcPartStartDirZ;
-    std::vector<Float_t> fMcPartEndX;
-    std::vector<Float_t> fMcPartEndY;
-    std::vector<Float_t> fMcPartEndZ;
-    std::vector<Float_t> fMcPartEndDirX;
-    std::vector<Float_t> fMcPartEndDirY;
-    std::vector<Float_t> fMcPartEndDirZ;
-    std::vector<Float_t> fMcPartEne;
-    std::vector<Float_t> fMcPartMom;
-    std::vector<Float_t> fMcPartMass;
-    std::vector<Float_t> fMcPartTrackLen;
-    std::vector<Int_t>   fMcPartTrackID;
-    std::vector<Int_t>   fMcPartNumRecoHits;
-    std::vector<Int_t>   fMcPartNumPFParts;
-    std::vector<Int_t>   fMcPartBestPFPart;
-    std::vector<Char_t>  fMcPartPrimary;
+    std::vector<Int_t>       fPDGCode;
+    std::vector<Float_t>     fMcPartStartX;
+    std::vector<Float_t>     fMcPartStartY;
+    std::vector<Float_t>     fMcPartStartZ;
+    std::vector<Float_t>     fMcPartStartDirX;
+    std::vector<Float_t>     fMcPartStartDirY;
+    std::vector<Float_t>     fMcPartStartDirZ;
+    std::vector<Float_t>     fMcPartEndX;
+    std::vector<Float_t>     fMcPartEndY;
+    std::vector<Float_t>     fMcPartEndZ;
+    std::vector<Float_t>     fMcPartEndDirX;
+    std::vector<Float_t>     fMcPartEndDirY;
+    std::vector<Float_t>     fMcPartEndDirZ;
+    std::vector<Float_t>     fMcPartEne;
+    std::vector<Float_t>     fMcPartMom;
+    std::vector<Float_t>     fMcPartMass;
+    std::vector<Float_t>     fMcPartTrackLen;
+    std::vector<Int_t>       fMcPartTrackID;
+    std::vector<Int_t>       fMcParentTrackID;
+    std::vector<Int_t>       fMcPartNumRecoHits;
+    std::vector<Int_t>       fMcPartNumUniqueHits;
+    std::vector<Int_t>       fMcPartNumPFParts;
+    std::vector<Int_t>       fMcPartBestPFPart;
+    std::vector<UShort_t>    fMcPartPrimary;
+    std::vector<UShort_t>    fMcNeutrinoDaughter;
+    
+    std::vector<std::string> fProcessNameVec;
+    std::vector<std::string> fParProcNameVec;
     
     // PFParticle information (meant to match the above)
     Int_t    fNumPFParticles;
-    std::vector<Int_t>   fBestMcTrackID;
-    std::vector<Int_t>   fNumMcTrackIDs;
-    std::vector<Int_t>   fNumRecoHitsTotal;
-    std::vector<Int_t>   fNumRecoHitsMatched;
-    std::vector<Int_t>   fPFPartNumTracks;
-    std::vector<Float_t> fPCAStartX;
-    std::vector<Float_t> fPCAStartY;
-    std::vector<Float_t> fPCAStartZ;
-    std::vector<Float_t> fPCAEigenVal1;
-    std::vector<Float_t> fPCAEigenVal2;
-    std::vector<Float_t> fPCAEigenVal3;
-    std::vector<Float_t> fPCAAxis1DirX;
-    std::vector<Float_t> fPCAAxis1DirY;
-    std::vector<Float_t> fPCAAxis1DirZ;
-    std::vector<Float_t> fPCAAxis2DirX;
-    std::vector<Float_t> fPCAAxis2DirY;
-    std::vector<Float_t> fPCAAxis2DirZ;
-    std::vector<Float_t> fPCAAxis3DirX;
-    std::vector<Float_t> fPCAAxis3DirY;
-    std::vector<Float_t> fPCAAxis3DirZ;
+    std::vector<Int_t>       fPFParticleID;
+    std::vector<Int_t>       fBestMcTrackID;
+    std::vector<Int_t>       fNumMcTrackIDs;
+    std::vector<Int_t>       fNumRecoHitsTotal;
+    std::vector<Int_t>       fNumRecoHitsMatched;
+    std::vector<Int_t>       fPFPartNumTracks;
+    std::vector<Float_t>     fPCAStartX;
+    std::vector<Float_t>     fPCAStartY;
+    std::vector<Float_t>     fPCAStartZ;
+    std::vector<Float_t>     fPCAEigenVal1;
+    std::vector<Float_t>     fPCAEigenVal2;
+    std::vector<Float_t>     fPCAEigenVal3;
+    std::vector<Float_t>     fPCAAxis1DirX;
+    std::vector<Float_t>     fPCAAxis1DirY;
+    std::vector<Float_t>     fPCAAxis1DirZ;
+    std::vector<Float_t>     fPCAAxis2DirX;
+    std::vector<Float_t>     fPCAAxis2DirY;
+    std::vector<Float_t>     fPCAAxis2DirZ;
+    std::vector<Float_t>     fPCAAxis3DirX;
+    std::vector<Float_t>     fPCAAxis3DirY;
+    std::vector<Float_t>     fPCAAxis3DirZ;
     
-    std::vector<std::string> fProcessNameVec;
+    std::vector<Float_t>     fPFCompositeScore;
+    std::vector<Float_t>     fPFCompositeTag;
+    
+    std::vector<Float_t>     fPFCosmicGeoScore;
+    std::vector<Float_t>     fPFCosmicGeoTag;
     
     // Associated reco track information
-    std::vector<Int_t>   fNumTrackHits;
-    std::vector<Float_t> fFitTrackLen;
-    std::vector<Float_t> fTrackStartX;
-    std::vector<Float_t> fTrackStartY;
-    std::vector<Float_t> fTrackStartZ;
-    std::vector<Float_t> fTrackStartDirX;
-    std::vector<Float_t> fTrackStartDirY;
-    std::vector<Float_t> fTrackStartDirZ;
-    std::vector<Float_t> fTrackEndX;
-    std::vector<Float_t> fTrackEndY;
-    std::vector<Float_t> fTrackEndZ;
-    std::vector<Float_t> fTrackEndDirX;
-    std::vector<Float_t> fTrackEndDirY;
-    std::vector<Float_t> fTrackEndDirZ;
+    std::vector<Int_t>       fTrackID;
+    std::vector<Int_t>       fNumKTracks;
+    std::vector<Int_t>       fTrackBestMCTrkId;
+    std::vector<Int_t>       fNumTrackHitsTotal;
+    std::vector<Int_t>       fNumTrackHitsMatched;
+    std::vector<Float_t>     fFitTrackLen;
+    std::vector<Float_t>     fTrackStartX;
+    std::vector<Float_t>     fTrackStartY;
+    std::vector<Float_t>     fTrackStartZ;
+    std::vector<Float_t>     fTrackStartDirX;
+    std::vector<Float_t>     fTrackStartDirY;
+    std::vector<Float_t>     fTrackStartDirZ;
+    std::vector<Float_t>     fTrackEndX;
+    std::vector<Float_t>     fTrackEndY;
+    std::vector<Float_t>     fTrackEndZ;
+    std::vector<Float_t>     fTrackEndDirX;
+    std::vector<Float_t>     fTrackEndDirY;
+    std::vector<Float_t>     fTrackEndDirZ;
+    std::vector<Float_t>     fDistToEdge;
+    
+    std::vector<Float_t>     fCosmicGeoScore;
+    std::vector<Float_t>     fCosmicGeoTag;
+    std::vector<Float_t>     fFlashScore;
+    
+    std::vector<Float_t>     fCosmicStartX;
+    std::vector<Float_t>     fCosmicStartY;
+    std::vector<Float_t>     fCosmicStartZ;
+    std::vector<Float_t>     fCosmicEndX;
+    std::vector<Float_t>     fCosmicEndY;
+    std::vector<Float_t>     fCosmicEndZ;
     
     // Other variables that will be shared between different methods.
-    art::ServiceHandle<geo::Geometry> fGeometry;       // pointer to Geometry service
-    double                            fElectronsToGeV; // conversion factor
+    art::ServiceHandle<geo::Geometry>            fGeometry;       // pointer to Geometry service
+    art::ServiceHandle<util::TimeService>        fTimeService;
+    art::ServiceHandle<util::DetectorProperties> fDetectorProperties;
+    double                                       fElectronsToGeV; // conversion factor
     
     // Define our output TTree here
     TTree*    fAnaTree;
@@ -267,8 +315,6 @@ void PFParticleMcAna::beginJob()
     fAnaTree->Branch("NoiseHits",            &fNoiseHits,             "NoiseHits/I");
     fAnaTree->Branch("NegativeTrackIDs",     &fNegTrackIds,           "NegativeTrackIDs/I");
     
-    fMaxEntries = 300;
-    
     // Start with the Monte Carlo information
     fAnaTree->Branch("NumMcParticles",       &fNumMcParticles,        "NumMcParticles/I");
     
@@ -290,47 +336,56 @@ void PFParticleMcAna::beginJob()
     fMcPartMass.resize(fMaxEntries, 0.);
     fMcPartTrackLen.resize(fMaxEntries, 0.);
     fMcPartTrackID.resize(fMaxEntries, 0);
+    fMcParentTrackID.resize(fMaxEntries, -1.);
     fMcPartNumRecoHits.resize(fMaxEntries, 0);
+    fMcPartNumUniqueHits.resize(fMaxEntries, 0);
     fMcPartNumPFParts.resize(fMaxEntries, 0);
     fMcPartBestPFPart.resize(fMaxEntries, 0);
     fMcPartPrimary.resize(fMaxEntries, 0);
+    fMcNeutrinoDaughter.resize(fMaxEntries, 0);
 
-    fAnaTree->Branch("McPartPDGCode",            fPDGCode.data(),            "McPartPDGCode[NumMcParticles]/I");
-    fAnaTree->Branch("McPartStartX",             fMcPartStartX.data(),       "McPartStartX[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartY",             fMcPartStartY.data(),       "McPartStartY[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartZ",             fMcPartStartZ.data(),       "McPartStartZ[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartDirX",          fMcPartStartDirX.data(),    "McPartStartDirX[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartDirY",          fMcPartStartDirY.data(),    "McPartStartDirY[NumMcParticles]/F");
-    fAnaTree->Branch("McPartStartDirZ",          fMcPartStartDirZ.data(),    "McPartStartDirZ[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndX",               fMcPartEndX.data(),         "McPartEndX[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndY",               fMcPartEndY.data(),         "McPartEndY[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndZ",               fMcPartEndZ.data(),         "McPartEndZ[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndDirX",            fMcPartEndDirX.data(),      "McPartEndDirX[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndDirY",            fMcPartEndDirY.data(),      "McPartEndDirY[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEndDirZ",            fMcPartEndDirZ.data(),      "McPartEndDirZ[NumMcParticles]/F");
-    fAnaTree->Branch("McPartEne",                fMcPartEne.data(),          "McPartEne[NumMcParticles]/F");
-    fAnaTree->Branch("McPartMom",                fMcPartMom.data(),          "McPartMom[NumMcParticles]/F");
-    fAnaTree->Branch("McPartMass",               fMcPartMass.data(),         "McPartMass[NumMcParticles]/F");
-    fAnaTree->Branch("McPartTrackLen",           fMcPartTrackLen.data(),     "McPartTrackLen[NumMcParticles]/F");
-    fAnaTree->Branch("McPartTrackID",            fMcPartTrackID.data(),      "McPartTrackID[NumMcParticles]/I");
-    fAnaTree->Branch("McPartNumRecoHits",        fMcPartNumRecoHits.data(),  "McPartNumRecoHits[NumMcParticles]/I");
-    fAnaTree->Branch("McPartNumPFParts",         fMcPartNumPFParts.data(),   "McPartNumPFParts[NumMcParticles]/I");
-    fAnaTree->Branch("McPartBestPFPart",         fMcPartBestPFPart.data(),   "McPartBestPFPart[NumMcParticles]/I");
-    fAnaTree->Branch("McPartPrimary",            fMcPartPrimary.data(),      "McPartPrimary[NumMcParticles]/B");
+    fAnaTree->Branch("McPartPDGCode",            fPDGCode.data(),             "McPartPDGCode[NumMcParticles]/I");
+    fAnaTree->Branch("McPartStartX",             fMcPartStartX.data(),        "McPartStartX[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartY",             fMcPartStartY.data(),        "McPartStartY[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartZ",             fMcPartStartZ.data(),        "McPartStartZ[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartDirX",          fMcPartStartDirX.data(),     "McPartStartDirX[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartDirY",          fMcPartStartDirY.data(),     "McPartStartDirY[NumMcParticles]/F");
+    fAnaTree->Branch("McPartStartDirZ",          fMcPartStartDirZ.data(),     "McPartStartDirZ[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndX",               fMcPartEndX.data(),          "McPartEndX[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndY",               fMcPartEndY.data(),          "McPartEndY[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndZ",               fMcPartEndZ.data(),          "McPartEndZ[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndDirX",            fMcPartEndDirX.data(),       "McPartEndDirX[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndDirY",            fMcPartEndDirY.data(),       "McPartEndDirY[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEndDirZ",            fMcPartEndDirZ.data(),       "McPartEndDirZ[NumMcParticles]/F");
+    fAnaTree->Branch("McPartEne",                fMcPartEne.data(),           "McPartEne[NumMcParticles]/F");
+    fAnaTree->Branch("McPartMom",                fMcPartMom.data(),           "McPartMom[NumMcParticles]/F");
+    fAnaTree->Branch("McPartMass",               fMcPartMass.data(),          "McPartMass[NumMcParticles]/F");
+    fAnaTree->Branch("McPartTrackLen",           fMcPartTrackLen.data(),      "McPartTrackLen[NumMcParticles]/F");
+    fAnaTree->Branch("McPartTrackID",            fMcPartTrackID.data(),       "McPartTrackID[NumMcParticles]/I");
+    fAnaTree->Branch("McParentTrackID",          fMcParentTrackID.data(),     "McParentTrackID[NumMcParticles]/I");
+    fAnaTree->Branch("McPartNumRecoHits",        fMcPartNumRecoHits.data(),   "McPartNumRecoHits[NumMcParticles]/I");
+    fAnaTree->Branch("McPartNumUniqueHits",      fMcPartNumUniqueHits.data(), "McPartNumUniqueHits[NumMcParticles]/I");
+    fAnaTree->Branch("McPartNumPFParts",         fMcPartNumPFParts.data(),    "McPartNumPFParts[NumMcParticles]/I");
+    fAnaTree->Branch("McPartBestPFPart",         fMcPartBestPFPart.data(),    "McPartBestPFPart[NumMcParticles]/I");
+    fAnaTree->Branch("McPartPrimary",            fMcPartPrimary.data(),       "McPartPrimary[NumMcParticles]/s");
+    fAnaTree->Branch("McNeutrinoDaughter",       fMcNeutrinoDaughter.data(),  "McNeutrinoDaughter[NumMcParticles]/s");
     
     
     fProcessNameVec.resize(fMaxEntries, "processname  ");
+    fParProcNameVec.resize(fMaxEntries, "processname  ");
     
     fAnaTree->Branch("McPartProcess",           &fProcessNameVec);
+    fAnaTree->Branch("McPartParProc",           &fParProcNameVec);
     
     // Now create PFParticle values to match the above
     fAnaTree->Branch("NumPFParticles",          &fNumPFParticles,            "NumPFParticles/I");
 
-    fBestMcTrackID.resize(fMaxEntries, 0.);
-    fNumMcTrackIDs.resize(fMaxEntries, 0.);
-    fNumRecoHitsTotal.resize(fMaxEntries, 0.);
-    fNumRecoHitsMatched.resize(fMaxEntries, 0.);
-    fPFPartNumTracks.resize(fMaxEntries, 0.);
+    fPFParticleID.resize(fMaxEntries, -1);
+    fBestMcTrackID.resize(fMaxEntries, -1);
+    fNumMcTrackIDs.resize(fMaxEntries, 0);
+    fNumRecoHitsTotal.resize(fMaxEntries, 0);
+    fNumRecoHitsMatched.resize(fMaxEntries, 0);
+    fPFPartNumTracks.resize(fMaxEntries, 0);
     fPCAStartX.resize(fMaxEntries, 0.);
     fPCAStartY.resize(fMaxEntries, 0.);
     fPCAStartZ.resize(fMaxEntries, 0.);
@@ -344,29 +399,52 @@ void PFParticleMcAna::beginJob()
     fPCAAxis3DirX.resize(fMaxEntries, 0.);
     fPCAAxis3DirY.resize(fMaxEntries, 0.);
     fPCAAxis3DirZ.resize(fMaxEntries, 0.);
+    fPFCosmicGeoScore.resize(fMaxEntries, 0.);
+    fPFCosmicGeoTag.resize(fMaxEntries, 0.);
     
-    fAnaTree->Branch("PFPartBestMcTrackID",      fBestMcTrackID.data(),      "PFPartBestMcTrackID[NumPFParticles]/I");
-    fAnaTree->Branch("PFPartNumMcTrackIDs",      fNumMcTrackIDs.data(),      "PFPartNumMcTrackIDs[NumPFParticles]/I");
-    fAnaTree->Branch("PFPartNumRecoHitsTotal",   fNumRecoHitsTotal.data(),   "PFPartNumRecoHitsTotal[NumPFParticles]/I");
-    fAnaTree->Branch("PFPartNumRecoHitsMatched", fNumRecoHitsMatched.data(), "PFPartNumRecoHitsMatched[NumPFParticles]/I");
-    fAnaTree->Branch("PFPartNumTracks",          fPFPartNumTracks.data(),    "PFPartNumTracks[NumPFParticles]/I");
-    fAnaTree->Branch("PFPartPCAStartX",          fPCAStartX.data(),          "PFPartPCAStartX[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAStartY",          fPCAStartY.data(),          "PFPartPCAStartY[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAStartZ",          fPCAStartZ.data(),          "PFPartPCAStartZ[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAEigenVal1",       fPCAEigenVal1.data(),       "PFPartPCAEigenVal1[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAEigenVal2",       fPCAEigenVal2.data(),       "PFPartPCAEigenVal2[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAEigenVal3",       fPCAEigenVal3.data(),       "PFPartPCAEigenVal3[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAAxis1DirX",       fPCAAxis1DirX.data(),       "PFPartPCAAxis1DirX[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAAxis1DirY",       fPCAAxis1DirY.data(),       "PFPartPCAAxis1DirY[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAAxis1DirZ",       fPCAAxis1DirZ.data(),       "PFPartPCAAxis1DirZ[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAAxis2DirX",       fPCAAxis2DirX.data(),       "PFPartPCAAxis2DirX[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAAxis2DirY",       fPCAAxis2DirY.data(),       "PFPartPCAAxis2DirY[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAAxis2DirZ",       fPCAAxis2DirZ.data(),       "PFPartPCAAxis2DirZ[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAAxis3DirX",       fPCAAxis3DirX.data(),       "PFPartPCAAxis3DirX[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAAxis3DirY",       fPCAAxis3DirY.data(),       "PFPartPCAAxis3DirY[NumPFParticles]/F");
-    fAnaTree->Branch("PFPartPCAAxis3DirZ",       fPCAAxis3DirZ.data(),       "PFPartPCAAxis3DirZ[NumPFParticles]/F");
+    fAnaTree->Branch("PFParticleID",             fPFParticleID.data(),       "PFParticleID[NumMcParticles]/I");
+    fAnaTree->Branch("PFPartBestMcTrackID",      fBestMcTrackID.data(),      "PFPartBestMcTrackID[NumMcParticles]/I");
+    fAnaTree->Branch("PFPartNumMcTrackIDs",      fNumMcTrackIDs.data(),      "PFPartNumMcTrackIDs[NumMcParticles]/I");
+    fAnaTree->Branch("PFPartNumRecoHitsTotal",   fNumRecoHitsTotal.data(),   "PFPartNumRecoHitsTotal[NumMcParticles]/I");
+    fAnaTree->Branch("PFPartNumRecoHitsMatched", fNumRecoHitsMatched.data(), "PFPartNumRecoHitsMatched[NumMcParticles]/I");
+    fAnaTree->Branch("PFPartNumTracks",          fPFPartNumTracks.data(),    "PFPartNumTracks[NumMcParticles]/I");
+    fAnaTree->Branch("PFPartPCAStartX",          fPCAStartX.data(),          "PFPartPCAStartX[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAStartY",          fPCAStartY.data(),          "PFPartPCAStartY[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAStartZ",          fPCAStartZ.data(),          "PFPartPCAStartZ[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAEigenVal1",       fPCAEigenVal1.data(),       "PFPartPCAEigenVal1[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAEigenVal2",       fPCAEigenVal2.data(),       "PFPartPCAEigenVal2[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAEigenVal3",       fPCAEigenVal3.data(),       "PFPartPCAEigenVal3[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAAxis1DirX",       fPCAAxis1DirX.data(),       "PFPartPCAAxis1DirX[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAAxis1DirY",       fPCAAxis1DirY.data(),       "PFPartPCAAxis1DirY[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAAxis1DirZ",       fPCAAxis1DirZ.data(),       "PFPartPCAAxis1DirZ[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAAxis2DirX",       fPCAAxis2DirX.data(),       "PFPartPCAAxis2DirX[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAAxis2DirY",       fPCAAxis2DirY.data(),       "PFPartPCAAxis2DirY[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAAxis2DirZ",       fPCAAxis2DirZ.data(),       "PFPartPCAAxis2DirZ[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAAxis3DirX",       fPCAAxis3DirX.data(),       "PFPartPCAAxis3DirX[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAAxis3DirY",       fPCAAxis3DirY.data(),       "PFPartPCAAxis3DirY[NumMcParticles]/F");
+    fAnaTree->Branch("PFPartPCAAxis3DirZ",       fPCAAxis3DirZ.data(),       "PFPartPCAAxis3DirZ[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicGeoScore",         fPFCosmicGeoScore.data(),   "PFCosmicGeoScore[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicGeoTag",           fPFCosmicGeoTag.data(),     "PFCosmicGeoTag[NumMcParticles]/F");
     
-    fNumTrackHits.resize(fMaxEntries, 0.);
+    fCosmicStartX.resize(fMaxEntries, 0.);
+    fCosmicStartY.resize(fMaxEntries, 0.);
+    fCosmicStartZ.resize(fMaxEntries, 0.);
+    fCosmicEndX.resize(fMaxEntries, 0.);
+    fCosmicEndY.resize(fMaxEntries, 0.);
+    fCosmicEndZ.resize(fMaxEntries, 0.);
+    
+    fAnaTree->Branch("PFCosmicStartX",           fCosmicStartX.data(),       "PFCosmicStartX[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicStartY",           fCosmicStartY.data(),       "PFCosmicStartY[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicStartZ",           fCosmicStartZ.data(),       "PFCosmicStartZ[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicEndX",             fCosmicEndX.data(),         "PFCosmicEndX[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicEndY",             fCosmicEndY.data(),         "PFCosmicEndY[NumMcParticles]/F");
+    fAnaTree->Branch("PFCosmicEndZ",             fCosmicEndZ.data(),         "PFCosmicEndZ[NumMcParticles]/F");
+    
+    fTrackID.resize(fMaxEntries, -1);
+    fNumKTracks.resize(fMaxEntries, 0);
+    fTrackBestMCTrkId.resize(fMaxEntries, 0);
+    fNumTrackHitsMatched.resize(fMaxEntries, 0);
+    fNumTrackHitsTotal.resize(fMaxEntries, 0);
     fFitTrackLen.resize(fMaxEntries, 0.);
     fTrackStartX.resize(fMaxEntries, 0.);
     fTrackStartY.resize(fMaxEntries, 0.);
@@ -380,21 +458,33 @@ void PFParticleMcAna::beginJob()
     fTrackEndDirX.resize(fMaxEntries, 0.);
     fTrackEndDirY.resize(fMaxEntries, 0.);
     fTrackEndDirZ.resize(fMaxEntries, 0.);
+    fDistToEdge.resize(fMaxEntries, 0.);
+    fCosmicGeoScore.resize(fMaxEntries, 0.);
+    fCosmicGeoTag.resize(fMaxEntries, 0.);
+    fFlashScore.resize(fMaxEntries, 0.);
     
-    fAnaTree->Branch("TrackNumRecoHits",         fNumTrackHits.data(),       "TrackNumRecoHits[NumPFParticles]/I");
-    fAnaTree->Branch("TrackLength",              fFitTrackLen.data(),        "TrackLength[NumPFParticles]/F");
-    fAnaTree->Branch("TrackStartX",              fTrackStartX.data(),        "TrackStartX[NumPFParticles]/F");
-    fAnaTree->Branch("TrackStartY",              fTrackStartY.data(),        "TrackStartY[NumPFParticles]/F");
-    fAnaTree->Branch("TrackStartZ",              fTrackStartZ.data(),        "TrackStartZ[NumPFParticles]/F");
-    fAnaTree->Branch("TrackStartDirX",           fTrackStartDirX.data(),     "TrackStartDirX[NumPFParticles]/F");
-    fAnaTree->Branch("TrackStartDirY",           fTrackStartDirY.data(),     "TrackStartDirY[NumPFParticles]/F");
-    fAnaTree->Branch("TrackStartDirZ",           fTrackStartDirZ.data(),     "TrackStartDirZ[NumPFParticles]/F");
-    fAnaTree->Branch("TrackEndX",                fTrackEndX.data(),          "TrackEndX[NumPFParticles]/F");
-    fAnaTree->Branch("TrackEndY",                fTrackEndY.data(),          "TrackEndY[NumPFParticles]/F");
-    fAnaTree->Branch("TrackEndZ",                fTrackEndZ.data(),          "TrackEndZ[NumPFParticles]/F");
-    fAnaTree->Branch("TrackEndDirX",             fTrackEndDirX.data(),       "TrackEndDirX[NumPFParticles]/F");
-    fAnaTree->Branch("TrackEndDirY",             fTrackEndDirY.data(),       "TrackEndDirY[NumPFParticles]/F");
-    fAnaTree->Branch("TrackEndDirZ",             fTrackEndDirZ.data(),       "TrackEndDirZ[NumPFParticles]/F");
+    fAnaTree->Branch("TrackID",                  fTrackID.data(),              "TrackID[NumMcParticles]/I");
+    fAnaTree->Branch("TrackNumPerMCParticle",    fNumKTracks.data(),           "TrackNumPerMCParticle[NumMcParticles]/I");
+    fAnaTree->Branch("TrackBestMCTrkID",         fTrackBestMCTrkId.data(),     "TrackBestMCTrkId[NumMcParticles]/I");
+    fAnaTree->Branch("TrackNumRecoHitsMatched",  fNumTrackHitsMatched.data(),  "TrackNumRecoHitsMatched[NumMcParticles]/I");
+    fAnaTree->Branch("TrackNumRecoHitsTotal",    fNumTrackHitsTotal.data(),    "TrackNumRecoHitsTotal[NumMcParticles]/I");
+    fAnaTree->Branch("TrackLength",              fFitTrackLen.data(),          "TrackLength[NumMcParticles]/F");
+    fAnaTree->Branch("TrackStartX",              fTrackStartX.data(),          "TrackStartX[NumMcParticles]/F");
+    fAnaTree->Branch("TrackStartY",              fTrackStartY.data(),          "TrackStartY[NumMcParticles]/F");
+    fAnaTree->Branch("TrackStartZ",              fTrackStartZ.data(),          "TrackStartZ[NumMcParticles]/F");
+    fAnaTree->Branch("TrackStartDirX",           fTrackStartDirX.data(),       "TrackStartDirX[NumMcParticles]/F");
+    fAnaTree->Branch("TrackStartDirY",           fTrackStartDirY.data(),       "TrackStartDirY[NumMcParticles]/F");
+    fAnaTree->Branch("TrackStartDirZ",           fTrackStartDirZ.data(),       "TrackStartDirZ[NumMcParticles]/F");
+    fAnaTree->Branch("TrackEndX",                fTrackEndX.data(),            "TrackEndX[NumMcParticles]/F");
+    fAnaTree->Branch("TrackEndY",                fTrackEndY.data(),            "TrackEndY[NumMcParticles]/F");
+    fAnaTree->Branch("TrackEndZ",                fTrackEndZ.data(),            "TrackEndZ[NumMcParticles]/F");
+    fAnaTree->Branch("TrackEndDirX",             fTrackEndDirX.data(),         "TrackEndDirX[NumMcParticles]/F");
+    fAnaTree->Branch("TrackEndDirY",             fTrackEndDirY.data(),         "TrackEndDirY[NumMcParticles]/F");
+    fAnaTree->Branch("TrackEndDirZ",             fTrackEndDirZ.data(),         "TrackEndDirZ[NumMcParticles]/F");
+    fAnaTree->Branch("TrackDistToEdge",          fDistToEdge.data(),           "TrackDistToEdge[NumMcParticles]/F");
+    fAnaTree->Branch("CosmicGeoScore",           fCosmicGeoScore.data(),       "CosmicGeoScore[NumMcParticles]/F");
+    fAnaTree->Branch("CosmicGeoTag",             fCosmicGeoTag.data(),         "CosmicGeoTag[NumMcParticles]/F");
+    fAnaTree->Branch("FlashScore",               fFlashScore.data(),           "FlashScore[NumMcParticles]/F");
 }
    
 //-----------------------------------------------------------------------
@@ -418,15 +508,18 @@ void PFParticleMcAna::reconfigure(fhicl::ParameterSet const& p)
     fHitProducerLabel           = p.get< std::string >("HitLabel");
     fClusterProducerLabel       = p.get< std::string >("ClusterProducerLabel");
     fTrackProducerLabel         = p.get< std::string >("TrackProducerLabel");
+    fPFCosmicProducerLabel      = p.get< std::string >("PFCosmicProducerLabel");
     fCosmicProducerLabel        = p.get< std::string >("CosmicProducerLabel");
     fFlashProducerLabel         = p.get< std::string >("FlashProducerLabel");
-    fSelectedPDG                = p.get< int         >("PDGcode");
+    fMaxEntries                 = p.get< int         >("MaxEntries", 300);
+
+    std::cout << "PFParticleMcAna: geometry has half width: " << fGeometry->DetHalfWidth() << ", half height: " << fGeometry->DetHalfHeight() << ", length: " << fGeometry->DetLength() << std::endl;
     
     return;
 }
     
 //-----------------------------------------------------------------------
-void PFParticleMcAna::PrepareEvent(const art::Event &evt)
+void PFParticleMcAna::PrepareEvent(const art::Event &evt, int numColumns)
 {
     fRun                   = evt.run();
     fEvent                 = evt.id().event();
@@ -437,76 +530,102 @@ void PFParticleMcAna::PrepareEvent(const art::Event &evt)
     fNumMcParticles        = 0;
     fNumPFParticles        = 0;
     
-    // Now clear the tuple variables too
-    fPDGCode.assign(fMaxEntries, 0);
-    fMcPartEndX.assign(fMaxEntries, 0.);
-    fMcPartStartY.assign(fMaxEntries, 0.);
-    fMcPartStartZ.assign(fMaxEntries, 0.);
-    fMcPartStartDirX.assign(fMaxEntries, 0.);
-    fMcPartStartDirY.assign(fMaxEntries, 0.);
-    fMcPartStartDirZ.assign(fMaxEntries, 0.);
-    fMcPartEne.assign(fMaxEntries, 0.);
-    fMcPartMom.assign(fMaxEntries, 0.);
-    fMcPartMass.assign(fMaxEntries, 0.);
-    fMcPartEndDirX.assign(fMaxEntries, 0.);
-    fMcPartEndDirY.assign(fMaxEntries, 0.);
-    fMcPartEndDirZ.assign(fMaxEntries, 0.);
-    fMcPartTrackLen.assign(fMaxEntries, 0.);
-    fMcPartTrackID.assign(fMaxEntries, 0);
-    fMcPartNumRecoHits.assign(fMaxEntries, 0);
-    fMcPartNumPFParts.assign(fMaxEntries, 0);
-    fMcPartBestPFPart.assign(fMaxEntries, 0);
-    fMcPartPrimary.assign(fMaxEntries, 0);
+    // Set the number of entries for each vector
+    // But no more than the maximum requested when we started
+    size_t maxEntries = numColumns < fMaxEntries ? numColumns : fMaxEntries;
     
-    fMcPartEndX.assign(fMaxEntries, 0.);
-    fMcPartEndY.assign(fMaxEntries, 0.);
-    fMcPartEndZ.assign(fMaxEntries, 0.);
+    // Now clear the tuple variables too
+    fPDGCode.assign(maxEntries, 0);
+    fMcPartEndX.assign(maxEntries, 0.);
+    fMcPartStartY.assign(maxEntries, 0.);
+    fMcPartStartZ.assign(maxEntries, 0.);
+    fMcPartStartDirX.assign(maxEntries, 0.);
+    fMcPartStartDirY.assign(maxEntries, 0.);
+    fMcPartStartDirZ.assign(maxEntries, 0.);
+    fMcPartEne.assign(maxEntries, 0.);
+    fMcPartMom.assign(maxEntries, 0.);
+    fMcPartMass.assign(maxEntries, 0.);
+    fMcPartEndDirX.assign(maxEntries, 0.);
+    fMcPartEndDirY.assign(maxEntries, 0.);
+    fMcPartEndDirZ.assign(maxEntries, 0.);
+    fMcPartTrackLen.assign(maxEntries, 0.);
+    fMcPartTrackID.assign(maxEntries, 0);
+    fMcParentTrackID.assign(maxEntries, -1.);
+    fMcPartNumRecoHits.assign(maxEntries, 0);
+    fMcPartNumUniqueHits.assign(maxEntries, 0);
+    fMcPartNumPFParts.assign(maxEntries, 0);
+    fMcPartBestPFPart.assign(maxEntries, 0);
+    fMcPartPrimary.assign(maxEntries, 0);
+    fMcNeutrinoDaughter.assign(maxEntries, 0);
+    
+    fMcPartEndX.assign(maxEntries, 0.);
+    fMcPartEndY.assign(maxEntries, 0.);
+    fMcPartEndZ.assign(maxEntries, 0.);
     
     // PFParticle information (meant to match the above)
-    fBestMcTrackID.assign(fMaxEntries, 0);
-    fNumMcTrackIDs.assign(fMaxEntries, 0);
-    fNumRecoHitsTotal.assign(fMaxEntries, 0);
-    fNumRecoHitsMatched.assign(fMaxEntries, 0);
-    fPFPartNumTracks.assign(fMaxEntries, 0);
-    fPCAStartX.assign(fMaxEntries, 0.);
-    fPCAStartY.assign(fMaxEntries, 0.);
-    fPCAStartZ.assign(fMaxEntries, 0.);
-    fPCAEigenVal1.assign(fMaxEntries, 0.);
-    fPCAEigenVal2.assign(fMaxEntries, 0.);
-    fPCAEigenVal3.assign(fMaxEntries, 0.);
-    fPCAAxis1DirX.assign(fMaxEntries, 0.);
-    fPCAAxis1DirY.assign(fMaxEntries, 0.);
-    fPCAAxis1DirZ.assign(fMaxEntries, 0.);
-    fPCAAxis2DirX.assign(fMaxEntries, 0.);
-    fPCAAxis2DirY.assign(fMaxEntries, 0.);
-    fPCAAxis2DirZ.assign(fMaxEntries, 0.);
-    fPCAAxis3DirX.assign(fMaxEntries, 0.);
-    fPCAAxis3DirY.assign(fMaxEntries, 0.);
-    fPCAAxis3DirZ.assign(fMaxEntries, 0.);
+    fPFParticleID.assign(maxEntries, -1);
+    fBestMcTrackID.assign(maxEntries, -1);
+    fNumMcTrackIDs.assign(maxEntries, 0);
+    fNumRecoHitsTotal.assign(maxEntries, 0);
+    fNumRecoHitsMatched.assign(maxEntries, 0);
+    fPFPartNumTracks.assign(maxEntries, 0);
+    fPCAStartX.assign(maxEntries, 0.);
+    fPCAStartY.assign(maxEntries, 0.);
+    fPCAStartZ.assign(maxEntries, 0.);
+    fPCAEigenVal1.assign(maxEntries, 0.);
+    fPCAEigenVal2.assign(maxEntries, 0.);
+    fPCAEigenVal3.assign(maxEntries, 0.);
+    fPCAAxis1DirX.assign(maxEntries, 0.);
+    fPCAAxis1DirY.assign(maxEntries, 0.);
+    fPCAAxis1DirZ.assign(maxEntries, 0.);
+    fPCAAxis2DirX.assign(maxEntries, 0.);
+    fPCAAxis2DirY.assign(maxEntries, 0.);
+    fPCAAxis2DirZ.assign(maxEntries, 0.);
+    fPCAAxis3DirX.assign(maxEntries, 0.);
+    fPCAAxis3DirY.assign(maxEntries, 0.);
+    fPCAAxis3DirZ.assign(maxEntries, 0.);
+    fPFCosmicGeoScore.assign(maxEntries, 0.);
+    fPFCosmicGeoTag.assign(maxEntries, 0.);
+    
+    fCosmicStartX.assign(maxEntries, 0.);
+    fCosmicStartY.assign(maxEntries, 0.);
+    fCosmicStartZ.assign(maxEntries, 0.);
+    fCosmicEndX.assign(maxEntries, 0.);
+    fCosmicEndY.assign(maxEntries, 0.);
+    fCosmicEndZ.assign(maxEntries, 0.);
     
     // Associated reco track information
-    fNumTrackHits.assign(fMaxEntries, 0);
-    fFitTrackLen.assign(fMaxEntries, 0.);
-    fTrackStartX.assign(fMaxEntries, 0.);
-    fTrackStartY.assign(fMaxEntries, 0.);
-    fTrackStartZ.assign(fMaxEntries, 0.);
-    fTrackStartDirX.assign(fMaxEntries, 0.);
-    fTrackStartDirY.assign(fMaxEntries, 0.);
-    fTrackStartDirZ.assign(fMaxEntries, 0.);
-    fTrackEndX.assign(fMaxEntries, 0.);
-    fTrackEndY.assign(fMaxEntries, 0.);
-    fTrackEndZ.assign(fMaxEntries, 0.);
-    fTrackEndDirX.assign(fMaxEntries, 0.);
-    fTrackEndDirY.assign(fMaxEntries, 0.);
-    fTrackEndDirZ.assign(fMaxEntries, 0.);
+    fTrackID.assign(maxEntries, -1);
+    fTrackBestMCTrkId.assign(maxEntries, 0);
+    fNumKTracks.assign(maxEntries, 0);
+    fNumTrackHitsMatched.assign(maxEntries, 0);
+    fNumTrackHitsTotal.assign(maxEntries, 0);
+    fFitTrackLen.assign(maxEntries, 0.);
+    fTrackStartX.assign(maxEntries, 0.);
+    fTrackStartY.assign(maxEntries, 0.);
+    fTrackStartZ.assign(maxEntries, 0.);
+    fTrackStartDirX.assign(maxEntries, 0.);
+    fTrackStartDirY.assign(maxEntries, 0.);
+    fTrackStartDirZ.assign(maxEntries, 0.);
+    fTrackEndX.assign(maxEntries, 0.);
+    fTrackEndY.assign(maxEntries, 0.);
+    fTrackEndZ.assign(maxEntries, 0.);
+    fTrackEndDirX.assign(maxEntries, 0.);
+    fTrackEndDirY.assign(maxEntries, 0.);
+    fTrackEndDirZ.assign(maxEntries, 0.);
+    fDistToEdge.assign(maxEntries, 0.);
+    fCosmicGeoScore.assign(maxEntries, 0.);
+    fCosmicGeoTag.assign(maxEntries, 0.);
+    fFlashScore.assign(maxEntries, 0.);
+
+    art::ServiceHandle<geo::Geometry>            fGeometry;       // pointer to Geometry service
+    art::ServiceHandle<util::TimeService>        fTimeService;
+    art::ServiceHandle<util::DetectorProperties> fDetectorProperties;
 }
 
 //-----------------------------------------------------------------------
 void PFParticleMcAna::analyze(const art::Event& event)
 {
-    // Start by fetching some basic event information for our n-tuple.
-    this->PrepareEvent(event);
-    
     // The first step is to attempt to recover the collection of MCHits that
     // we will need for doing our PFParticle to MC matching
     art::Handle< std::vector<sim::MCHitCollection> > mcHitCollectionHandle;
@@ -586,10 +705,24 @@ void PFParticleMcAna::analyze(const art::Event& event)
     PFParticleToTrackHit2DMap pfParticleToTrackHitMap;
     
     // Something to keep track of number of hits associated to a cluster
-    std::map<const recob::PFParticle*, int> pfParticleHitCntMap;
+    std::map<art::Ptr<recob::PFParticle>, int> pfParticleHitCntMap;
 
     // Call the method for building out the PFParticle data structures
     MakePFParticleMaps(event, pfParticleHandle, hitToParticleMap, pfParticleToTrackHitMap, trackIDToPFParticleMap, pfParticleHitCntMap);
+    
+    // Now retrieve a handle to the fit tracks which we need to build the fit track MCParticle maps
+    art::Handle<std::vector<recob::Track> > trackHandle;
+    event.getByLabel(fTrackProducerLabel, trackHandle);
+    
+    // Now define the maps relating fit tracks (we'll call KTracks) to MCParticle tracks
+    TrackIDToKTrackVecMap trackIDToKTrackMap;
+    KTrackToTrackHit2DMap kTrackToTrackHitMap;
+    
+    // Something to keep track of number of hits associated to a KTrack
+    std::map<art::Ptr<recob::Track>, int> kTrackHitCntMap;
+    
+    // Call the method for building out the KTrack data structures
+    MakeKTrackMaps(event, trackHandle, hitToParticleMap, kTrackToTrackHitMap, trackIDToKTrackMap, kTrackHitCntMap);
     
     // Always a handy thing to have hidden in your code:
 //    const double radToDegrees = 180. / 3.14159265;
@@ -602,30 +735,40 @@ void PFParticleMcAna::analyze(const art::Event& event)
     // Recover the collection of associations between PFParticles and PCAxis objects
     art::FindManyP<recob::PCAxis> pcaxisAssns(pfParticleHandle, event, fPFParticleProducerLabel);
     
-    // Now retrieve a handle to the fit tracks, we will only use this when we are sure it is valid
-    //art::Handle<std::vector<recob::Track> > trackHandle;
-    //event.getByLabel(fTrackProducerLabel, trackHandle);
-    
     // Recover two sets of associations for linking cosmic tags to the tracks
-    //art::FindManyP<anab::CosmicTag> cosmicAssns(trackHandle, event, fCosmicProducerLabel);
-    //art::FindManyP<anab::CosmicTag> flashAssns(trackHandle,  event, fFlashProducerLabel);
-
+    art::FindManyP<anab::CosmicTag> pfCosmicAssns(  pfParticleHandle, event, fPFCosmicProducerLabel);
+    art::FindManyP<anab::CosmicTag> pfTkCosmicAssns(trackHandle,      event, fPFCosmicProducerLabel);
+    art::FindManyP<anab::CosmicTag> cosmicAssns(    trackHandle,      event, fCosmicProducerLabel);
+    art::FindManyP<anab::CosmicTag> flashAssns(     trackHandle,      event, fFlashProducerLabel);
+    
+    // Ok, final step is to initialize the ntuple variables, in particular now that we know how many columns
+    this->PrepareEvent(event, particleToHitMap.size());
+    
     // We will loop through all of the MCParticles and look for those particles that produce hits
     for (size_t particleIdx = 0; particleIdx < particleHandle->size(); particleIdx++)
     {
         art::Ptr<simb::MCParticle> particle(particleHandle, particleIdx);
 
         // Recover the track ID, for historical reasons we call it "best"
-        int bestTrackID = particle->TrackId();
+        int particleTrackID = particle->TrackId();
         
         // Did this mc particle leave hits in the TPC?
-        ParticleToHitMap::iterator particleToHitItr = particleToHitMap.find(bestTrackID);
+        ParticleToHitMap::iterator particleToHitItr = particleToHitMap.find(particleTrackID);
         
         // Let's get the total number of "true" hits that are created by this MCParticle
         // Count number of hits in each view
-        int nTrueMcHits(0);
+        size_t nTrueMcHits(0);
+        size_t nUniqueTrueMcHits(0);
         
-        if (particleToHitItr != particleToHitMap.end())  nTrueMcHits = particleToHitItr->second.size();
+        if (particleToHitItr != particleToHitMap.end())
+        {
+            nTrueMcHits = particleToHitItr->second.size();
+            
+            for(const auto& hit : particleToHitItr->second)
+            {
+                if (hitToParticleMap[hit].size() < 2) nUniqueTrueMcHits++;
+            }
+        }
         
         // It is pointless to go through the rest of the loop if there are no hits to analyze
         if (nTrueMcHits < 1) continue;
@@ -642,17 +785,27 @@ void PFParticleMcAna::analyze(const art::Event& event)
             }
         }
         
-        // Calculate the x offset due to nonzero mc particle time.
-        double mctime = particle->T();                                    // nsec
-        double mcdx   = mctime * 1.e-3 * larProperties->DriftVelocity();  // cm
-            
+        // The following is meant to get the correct offset for drawing the particle trajectory
+        // In particular, the cosmic rays will not be correctly placed without this
+        double g4Ticks(fTimeService->TPCG4Time2Tick(particle->T())+fDetectorProperties->GetXTicksOffset(0,0,0)-fDetectorProperties->TriggerOffset());
+        double xOffset(fDetectorProperties->ConvertTicksToX(g4Ticks, 0, 0, 0));
+        
         // Calculate the length of this mc particle inside the fiducial volume.
         TVector3 mcstart;
         TVector3 mcend;
         TVector3 mcstartmom;
         TVector3 mcendmom;
         
-        double mcTrackLen = length(*particle, mcdx, mcstart, mcend, mcstartmom, mcendmom);
+        double mcTrackLen = length(*particle, xOffset, mcstart, mcend, mcstartmom, mcendmom);
+        
+        // Apparently it can happen that we completely miss the TPC
+        if (mcTrackLen == 0.) continue;
+        
+//        if (mcTrackLen > 0.3 || nTrueMcHits > 3)
+//        {
+//            std::cout << "****>> Number true hits: " << nTrueMcHits << ", range: " << mcTrackLen << std::endl;
+//            std::cout << *particle << std::endl;
+//        }
         
         // Set the momentum vector to a unit direction vector
         if (mcstartmom.Mag() > 0.) mcstartmom.SetMag(1.);
@@ -660,25 +813,73 @@ void PFParticleMcAna::analyze(const art::Event& event)
         
         std::string process   = particle->Process();
         bool        isPrimary = process == "primary";
+        
+        // We also need to determine ultimate parentage so we can discern true neutrino decay products from CR
+        bool isNeutrino(false);
+        int  parentTrackIdx(-1);
+        
+        try
+        {
+            art::Ptr<simb::MCTruth> mcTruth = mcTruthAssns.at(particleIdx);
+            
+//            std::cout << *mcTruth << std::endl;
+            
+            simb::Origin_t particleOrigin = mcTruth->Origin();
+            if (particleOrigin != simb::kCosmicRay) isNeutrino = true;
+        }
+        catch(...)
+        {
+            isNeutrino = false;
+        }
+        
+        // See if we can find the mother to this particle in our particle map
+        std::map< int, const simb::MCParticle*>::iterator particleItr = particleMap.find(particle->Mother());
+        const simb::MCParticle* lastParticle = particle.get();
+        
+        // While we have a valid mother particle, traverse up the particle tree
+        // Note: The sign we are at the top of the tree is that the mother particle index is zero and
+        // there will be no entry in the index-particle map for that case.
+        while(particleItr != particleMap.end())
+        {
+            lastParticle = particleItr->second;
+            particleItr  = particleMap.find(lastParticle->Mother());
+        }
+        
+        std::string parentProcess = lastParticle->Process();
+        
+        parentTrackIdx = lastParticle->TrackId();
 
         // Define the various quantities we want to fill if we find a PFParticle associated to this MCParticle
-        const recob::PFParticle* pfParticle(0);
-        const recob::Track*      tTrack(0);
-        int                      bestCnt(0);
-        double                   trackLen(0.);
-        int                      nTotalClusterHits(0);
-        int                      numPFParticles(0);
-        int                      numPFPartTracks(0);
-        int                      bestPFParticleID(-1);
-        int                      numTrackHits(0);
-        TVector3                 pcaxisPos(0.,0.,-10.);
-        TVector3                 pcaEigenVals(0.,0.,0.);
-        TVector3                 pcaxis1Dir(0.,0.,1.);
-        TVector3                 pcaxis2Dir(0.,0.,1.);
-        TVector3                 pcaxis3Dir(0.,0.,1.);
+        const recob::Track* tTrack(0);
+        int                 bestCnt(0);
+        double              trackLen(0.);
+        int                 nTotalClusterHits(0);
+        int                 numPFParticles(0);         // PFParticle
+        int                 numPFPartTracks(0);        // PFParticle
+        int                 bestPFParticleID(-1);      // PFParticle
+        int                 bestPFParticleMCTrkID(-1); // PFParticle
+        float               trackDistToEdge(9999.);
+        float               pfCosmicTagVal(0.);
+        float               pfCosmicTypeVal(0.);
+        float               cosmicTagVal(0.);
+        float               cosmicTypeVal(0.);
+        float               flashTagVal(0.);
+        TVector3            pcaxisPos(0.,0.,-10.);
+        TVector3            pcaEigenVals(0.,0.,0.);
+        TVector3            pcaxis1Dir(0.,0.,1.);
+        TVector3            pcaxis2Dir(0.,0.,1.);
+        TVector3            pcaxis3Dir(0.,0.,1.);
+        TVector3            pfCosmicStart(0.,0.,0.);
+        TVector3            pfCosmicEnd(0.,0.,0.);
         
-        // Now check to see that a track is associated with this MCParticle (trackID)
-        TrackIDToPFParticleVecMap::iterator trackIDToPFParticleItr = trackIDToPFParticleMap.find(bestTrackID);
+        int                 nTotalTrackHits(0);
+        int                 bestKTrackCnt(0);
+        int                 numKTracks(0);
+        int                 bestKTrackID(-1);
+        int                 bestKTrackMCTrkId(-1);
+        
+        // Now check to see that a PFParticle is associated with this MCParticle (trackID)
+        TrackIDToPFParticleVecMap::iterator trackIDToPFParticleItr = trackIDToPFParticleMap.find(particleTrackID);
         
         // Proceed here if we have at least a chance to match to PFParticle
         if (trackIDToPFParticleItr != trackIDToPFParticleMap.end())
@@ -686,79 +887,164 @@ void PFParticleMcAna::analyze(const art::Event& event)
             // We want to keep track of this...
             numPFParticles = trackIDToPFParticleItr->second.size();
             
+            // What happens if a secondary with multiple PFParticles?
+            // We want to try to avoid the case where a single hit can be confused
+            // between two MCParticles, say crossed tracks or something.
+            int topParticleTrackID(particleTrackID);
+
+            if (numPFParticles > 1 && particle->Process() != "primary")
+            {
+                int parentId = particle->Mother();
+                
+                if (parentId)
+                {
+                    std::map< int, const simb::MCParticle*>::iterator parentItr = particleMap.find(parentId);
+                    
+                    if (parentItr != particleMap.end())
+                    {
+                        if (parentItr->second->Mother() == 0)
+                        {
+                            TrackIDToPFParticleVecMap::iterator parentIDToPFParticleItr = trackIDToPFParticleMap.find(parentId);
+                            
+                            if (parentIDToPFParticleItr != trackIDToPFParticleMap.end()) topParticleTrackID = parentId;
+                        }
+                    }
+                    //else std::cout << *particle << std::endl;
+                }
+            }
+            
             // Ok, it is possible for one MCParticle to have more than one PFParticle (think of a broken cluster) so we
             // need to loop through the possible PFParticles (and fully expect this to normally be only one PFParticle)
             for(const auto& tmpPart : trackIDToPFParticleItr->second)
             {
                 // For the given PFParticle, recover the element corresponding to the current MCParticle Track ID
-                TrackIDToHit2DMap::iterator tmpPartTrackItr = pfParticleToTrackHitMap[tmpPart].find(bestTrackID);
+                TrackIDToHit2DMap::iterator tmpPartTrackItr = pfParticleToTrackHitMap[tmpPart].find(topParticleTrackID);
 
                 // In theory this condition is satisfied at least once per loop
                 if (tmpPartTrackItr != pfParticleToTrackHitMap[tmpPart].end())
                 {
                     // Recover the hit count
                     int trackHitCnt = tmpPartTrackItr->second.size();
-            
-                    // For the PFParticles that might be associated to the single MCParticle, select the one with the most hits
+
+                    // Most hits wins!
                     if (trackHitCnt > bestCnt)
                     {
-                        bestCnt    = trackHitCnt;
-                        pfParticle = tmpPart;
+                        bestCnt          = trackHitCnt;
+                        //pfBestPurity     = purity;
+                        bestPFParticleID = tmpPart.key();
                     }
                 }
             }
 
             // If we found a matching PFParticle then look up the associated information
-            if (pfParticle)
+            if (bestPFParticleID > -1)
             {
-                bestPFParticleID = pfParticle->Self();
-        
-                // Start by looking for an associated fit track(s)
-                if (trackAssns.isValid())
+                art::Ptr<recob::PFParticle> pfParticle(pfParticleHandle,bestPFParticleID);
+                
+                // Recover tracks associated to this PFParticle
+                std::vector<art::Ptr<recob::Track>> trackVec = trackAssns.at(pfParticle.key());
+                
+                numKTracks = trackVec.size();
+                
+                for(const auto& trackPtr : trackVec)
                 {
-                    std::vector<art::Ptr<recob::Track> > tTrackVec = trackAssns.at(pfParticle->Self());
+                    // For the given PFParticle, recover the element corresponding to the current MCParticle Track ID
+                    TrackIDToHit2DMap::iterator tmpPartTrackItr = kTrackToTrackHitMap[trackPtr].find(topParticleTrackID);
                     
-                    if (!tTrackVec.empty())
+                    // In theory this condition is satisfied at least once per loop
+                    if (tmpPartTrackItr != kTrackToTrackHitMap[trackPtr].end())
                     {
-                        art::Ptr<recob::Track> trackPtr = tTrackVec[0];
-                        size_t                 nPoints  = trackPtr->NumberTrajectoryPoints();
+                        // Recover the hit count
+                        int trackHitCnt = tmpPartTrackItr->second.size();
+                        
+                        // Most hits are the winner
+                        if (trackHitCnt > bestKTrackCnt)
+                        {
+                            bestKTrackCnt = trackHitCnt;
+                            bestKTrackID  = trackPtr.key();
+                        }
+                    }
+                }
+
+                // Start by looking for an associated fit track(s)
+                if (bestKTrackID > -1)
+                {
+                    art::Ptr<recob::Track> trackPtr(trackHandle,bestKTrackID);
                     
-                        for(size_t idx = 1; idx < tTrackVec.size(); idx++)
+                    tTrack          = trackPtr.get();
+                    trackLen        = length(tTrack);
+                    nTotalTrackHits = kTrackHitCntMap[trackPtr];
+                    
+                    TrackIDToHit2DMap::iterator trackIDToHit2DMapItr = kTrackToTrackHitMap[trackPtr].begin();
+                    int                             bestKTrackHitCnt = trackIDToHit2DMapItr->second.size();
+                    
+                    bestKTrackMCTrkId = trackIDToHit2DMapItr->first;
+                    
+                    while(++trackIDToHit2DMapItr != kTrackToTrackHitMap[trackPtr].end())
+                    {
+                        if (bestKTrackHitCnt < int(trackIDToHit2DMapItr->second.size()))
                         {
-                            // In the event more than one track was associated to the PFParticle then
-                            // accept the one with the most trajectory points (which is NOT the same
-                            // thing as the most recob::Hits!)
-                            if (tTrackVec[idx]->NumberTrajectoryPoints() > nPoints)
-                            {
-                                trackPtr = tTrackVec[idx];
-                                nPoints  = trackPtr->NumberTrajectoryPoints();
-                            }
+                            bestKTrackHitCnt  = trackIDToHit2DMapItr->second.size();
+                            bestKTrackMCTrkId = trackIDToHit2DMapItr->first;
                         }
-                        
-
-                        art::PtrVector<recob::Track> trackPtrVec;
-                         
-                        trackPtrVec.push_back(trackPtr);
-
-                        // Ok, now we want to get the number of actual recob::Hits in the track
-                        art::FindManyP<recob::Hit> trackHitAssns(trackPtrVec, event, fTrackProducerLabel);
-                         
-                        if (trackHitAssns.isValid())
-                        {
-                            numTrackHits = trackHitAssns.at(0).size();
-                        }
-                        
-                        tTrack        = trackPtr.get();
-                        trackLen      = length(tTrack);
                     }
                     
-                    numPFPartTracks = tTrackVec.size();
+                    // While here let's check CR tagging status of this track
+                    if (cosmicAssns.isValid())
+                    {
+                        std::vector<art::Ptr<anab::CosmicTag>> cosmicTagVec = cosmicAssns.at(trackPtr.key());
+                        
+                        if (!cosmicTagVec.empty())
+                        {
+                            art::Ptr<anab::CosmicTag> cosmicTag = cosmicTagVec.front();
+                        
+                            cosmicTagVal  = cosmicTag->CosmicScore();
+                            cosmicTypeVal = cosmicTag->CosmicType();
+                        }
+                    }
+                    
+                    if (flashAssns.isValid())
+                    {
+                        std::vector<art::Ptr<anab::CosmicTag>> cosmicTagVec = flashAssns.at(trackPtr.key());
+                        
+                        if (!cosmicTagVec.empty())
+                        {
+                            art::Ptr<anab::CosmicTag> cosmicTag = cosmicTagVec.front();
+                        
+                            flashTagVal  = cosmicTag->CosmicScore();
+                        }
+                    }
+                    
+                    if (pfTkCosmicAssns.isValid()) // && !(pfCosmicAssns.isValid() && pfCosmicAssns.size() > 0))
+                    {
+                        std::vector<art::Ptr<anab::CosmicTag>> pfTkCosmicTagVec = pfTkCosmicAssns.at(trackPtr.key());
+                        
+                        if (!pfTkCosmicTagVec.empty())
+                        {
+                            art::Ptr<anab::CosmicTag> cosmicTag = pfTkCosmicTagVec.front();
+                        
+                            pfCosmicTagVal  = cosmicTag->CosmicScore();
+                            pfCosmicTypeVal = cosmicTag->CosmicType();
+                        }
+                    }
+                    
+                    double beginDistToEdge = distanceToTPCEdge(tTrack->Vertex());
+                    double endDistToEdge   = distanceToTPCEdge(tTrack->End());
+                    
+                    trackDistToEdge = std::min(beginDistToEdge, endDistToEdge);
+                }
+                
+                // How many tracks associated to this PFParticle?
+                if (trackAssns.isValid())
+                {
+                    std::vector<art::Ptr<recob::Track>> trackVec = trackAssns.at(pfParticle.key());
+                    numPFPartTracks = trackVec.size();
                 }
                 
                 // Look for an associated PCAxis
                 if (pcaxisAssns.isValid())
                 {
-                    std::vector<art::Ptr<recob::PCAxis> > pcaxisVec = pcaxisAssns.at(pfParticle->Self());
+                    std::vector<art::Ptr<recob::PCAxis> > pcaxisVec = pcaxisAssns.at(pfParticle.key());
                     
                     if (!pcaxisVec.empty())
                     {
@@ -770,6 +1056,38 @@ void PFParticleMcAna::analyze(const art::Event& event)
                         pcaxis1Dir   = TVector3(pcaxis->getEigenVectors()[0][0],pcaxis->getEigenVectors()[0][1],pcaxis->getEigenVectors()[0][2]);
                         pcaxis2Dir   = TVector3(pcaxis->getEigenVectors()[1][0],pcaxis->getEigenVectors()[1][1],pcaxis->getEigenVectors()[1][2]);
                         pcaxis3Dir   = TVector3(pcaxis->getEigenVectors()[2][0],pcaxis->getEigenVectors()[2][1],pcaxis->getEigenVectors()[2][2]);
+                    }
+                }
+                
+                // Were there cosmic tag associations with this PFParticle?
+                if (pfCosmicAssns.isValid())
+                {
+                    std::vector<art::Ptr<anab::CosmicTag>> pfCosmicTagVec = pfCosmicAssns.at(pfParticle.key());
+                    
+                    if (!pfCosmicTagVec.empty())
+                    {
+                        art::Ptr<anab::CosmicTag> cosmicTag = pfCosmicTagVec.front();
+                    
+                        pfCosmicTagVal  = cosmicTag->CosmicScore();
+                        pfCosmicTypeVal = cosmicTag->CosmicType();
+                        
+                        pfCosmicStart   = TVector3(cosmicTag->EndPoint1()[0],cosmicTag->EndPoint1()[1],cosmicTag->EndPoint1()[2]);
+                        pfCosmicEnd     = TVector3(cosmicTag->EndPoint2()[0],cosmicTag->EndPoint2()[1],cosmicTag->EndPoint2()[2]);
+                    }
+                }
+                
+                // Find the MCParticle which contributes the most to this PFParticle
+                TrackIDToHit2DMap::iterator trackIDToHit2DMapItr     = pfParticleToTrackHitMap[pfParticle].begin();
+                int                             bestPFParticleHitCnt = trackIDToHit2DMapItr->second.size();
+                
+                bestPFParticleMCTrkID = trackIDToHit2DMapItr->first;
+                
+                while(++trackIDToHit2DMapItr != pfParticleToTrackHitMap[pfParticle].end())
+                {
+                    if (bestPFParticleHitCnt < int(trackIDToHit2DMapItr->second.size()))
+                    {
+                        bestPFParticleHitCnt  = trackIDToHit2DMapItr->second.size();
+                        bestPFParticleMCTrkID = trackIDToHit2DMapItr->first;
                     }
                 }
         
@@ -786,28 +1104,32 @@ void PFParticleMcAna::analyze(const art::Event& event)
         // Start with MC...
         if (fNumMcParticles < fMaxEntries)
         {
-            fPDGCode[fNumMcParticles]           = trackPDGCode;
-            fMcPartStartX[fNumMcParticles]      = mcstart.X();
-            fMcPartStartY[fNumMcParticles]      = mcstart.Y();
-            fMcPartStartZ[fNumMcParticles]      = mcstart.Z();
-            fMcPartStartDirX[fNumMcParticles]   = mcstartmom.X();
-            fMcPartStartDirY[fNumMcParticles]   = mcstartmom.Y();
-            fMcPartStartDirZ[fNumMcParticles]   = mcstartmom.Z();
-            fMcPartEndX[fNumMcParticles]        = mcend.X();
-            fMcPartEndY[fNumMcParticles]        = mcend.Y();
-            fMcPartEndZ[fNumMcParticles]        = mcend.Z();
-            fMcPartEndDirX[fNumMcParticles]     = mcendmom.X();
-            fMcPartEndDirY[fNumMcParticles]     = mcendmom.Y();
-            fMcPartEndDirZ[fNumMcParticles]     = mcendmom.Z();
-            fMcPartEne[fNumMcParticles]         = particle->E();
-            fMcPartMass[fNumMcParticles]        = particle->Mass();
-            fMcPartTrackLen[fNumMcParticles]    = mcTrackLen;
-            fMcPartTrackID[fNumMcParticles]     = bestTrackID;
-            fMcPartNumRecoHits[fNumMcParticles] = nTrueMcHits;
-            fMcPartNumPFParts[fNumMcParticles]  = numPFParticles;
-            fMcPartBestPFPart[fNumMcParticles]  = bestPFParticleID;
-            fProcessNameVec[fNumMcParticles]    = process;
-            fMcPartPrimary[fNumMcParticles]     = isPrimary;
+            fPDGCode[fNumMcParticles]             = trackPDGCode;
+            fMcPartStartX[fNumMcParticles]        = mcstart.X();
+            fMcPartStartY[fNumMcParticles]        = mcstart.Y();
+            fMcPartStartZ[fNumMcParticles]        = mcstart.Z();
+            fMcPartStartDirX[fNumMcParticles]     = mcstartmom.X();
+            fMcPartStartDirY[fNumMcParticles]     = mcstartmom.Y();
+            fMcPartStartDirZ[fNumMcParticles]     = mcstartmom.Z();
+            fMcPartEndX[fNumMcParticles]          = mcend.X();
+            fMcPartEndY[fNumMcParticles]          = mcend.Y();
+            fMcPartEndZ[fNumMcParticles]          = mcend.Z();
+            fMcPartEndDirX[fNumMcParticles]       = mcendmom.X();
+            fMcPartEndDirY[fNumMcParticles]       = mcendmom.Y();
+            fMcPartEndDirZ[fNumMcParticles]       = mcendmom.Z();
+            fMcPartEne[fNumMcParticles]           = particle->E();
+            fMcPartMass[fNumMcParticles]          = particle->Mass();
+            fMcPartTrackLen[fNumMcParticles]      = mcTrackLen;
+            fMcPartTrackID[fNumMcParticles]       = particleTrackID;
+            fMcParentTrackID[fNumMcParticles]     = parentTrackIdx;
+            fMcPartNumRecoHits[fNumMcParticles]   = nTrueMcHits;
+            fMcPartNumUniqueHits[fNumMcParticles] = nUniqueTrueMcHits;
+            fMcPartNumPFParts[fNumMcParticles]    = numPFParticles;
+            fMcPartBestPFPart[fNumMcParticles]    = bestPFParticleID;
+            fProcessNameVec[fNumMcParticles]      = process;
+            fParProcNameVec[fNumMcParticles]      = parentProcess;
+            fMcPartPrimary[fNumMcParticles]       = isPrimary;
+            fMcNeutrinoDaughter[fNumMcParticles]  = isNeutrino;
             
             fNumMcParticles++;
         }
@@ -815,7 +1137,8 @@ void PFParticleMcAna::analyze(const art::Event& event)
         // Now do PFParticle corresponding to the above
         if (fNumPFParticles < fMaxEntries)
         {
-            fBestMcTrackID[fNumPFParticles]      = bestTrackID;
+            fPFParticleID[fNumPFParticles]       = bestPFParticleID;
+            fBestMcTrackID[fNumPFParticles]      = bestPFParticleMCTrkID;
             fNumMcTrackIDs[fNumPFParticles]      = numPFParticles;
             fNumRecoHitsTotal[fNumPFParticles]   = nTotalClusterHits;
             fNumRecoHitsMatched[fNumPFParticles] = bestCnt;
@@ -836,30 +1159,51 @@ void PFParticleMcAna::analyze(const art::Event& event)
             fPCAAxis3DirY[fNumPFParticles]       = pcaxis3Dir[1];
             fPCAAxis3DirZ[fNumPFParticles]       = pcaxis3Dir[2];
             
-            fNumTrackHits[fNumPFParticles]       = numTrackHits;
-            fFitTrackLen[fNumPFParticles]        = trackLen;
+            fPFCosmicGeoScore[fNumPFParticles]   = pfCosmicTagVal;
+            fPFCosmicGeoTag[fNumPFParticles]     = pfCosmicTypeVal;
+            
+            fCosmicStartX[fNumPFParticles]       = pfCosmicStart.X();
+            fCosmicStartY[fNumPFParticles]       = pfCosmicStart.Y();
+            fCosmicStartZ[fNumPFParticles]       = pfCosmicStart.Z();
+            fCosmicEndX[fNumPFParticles]         = pfCosmicEnd.X();
+            fCosmicEndY[fNumPFParticles]         = pfCosmicEnd.Y();
+            fCosmicEndZ[fNumPFParticles]         = pfCosmicEnd.Z();
             
             if (tTrack)
             {
-                fTrackStartX[fNumPFParticles]    = tTrack->Vertex().X();
-                fTrackStartY[fNumPFParticles]    = tTrack->Vertex().Y();
-                fTrackStartZ[fNumPFParticles]    = tTrack->Vertex().Z();
-                fTrackStartDirX[fNumPFParticles] = tTrack->VertexDirection().X();
-                fTrackStartDirY[fNumPFParticles] = tTrack->VertexDirection().Y();
-                fTrackStartDirZ[fNumPFParticles] = tTrack->VertexDirection().Z();
-                fTrackEndX[fNumPFParticles]      = tTrack->End().X();
-                fTrackEndY[fNumPFParticles]      = tTrack->End().Y();
-                fTrackEndZ[fNumPFParticles]      = tTrack->End().Z();
-                fTrackEndDirX[fNumPFParticles]   = tTrack->EndDirection().X();
-                fTrackEndDirY[fNumPFParticles]   = tTrack->EndDirection().Y();
-                fTrackEndDirZ[fNumPFParticles]   = tTrack->EndDirection().Z();
+                fTrackID[fNumPFParticles]             = bestKTrackID;
+                fNumKTracks[fNumPFParticles]          = numKTracks;
+                fNumTrackHitsMatched[fNumPFParticles] = bestKTrackCnt;
+                fNumTrackHitsTotal[fNumPFParticles]   = nTotalTrackHits;
+                fFitTrackLen[fNumPFParticles]         = trackLen;
+                fTrackBestMCTrkId[fNumPFParticles]    = bestKTrackMCTrkId;
+                fTrackStartX[fNumPFParticles]         = tTrack->Vertex().X();
+                fTrackStartY[fNumPFParticles]         = tTrack->Vertex().Y();
+                fTrackStartZ[fNumPFParticles]         = tTrack->Vertex().Z();
+                fTrackStartDirX[fNumPFParticles]      = tTrack->VertexDirection().X();
+                fTrackStartDirY[fNumPFParticles]      = tTrack->VertexDirection().Y();
+                fTrackStartDirZ[fNumPFParticles]      = tTrack->VertexDirection().Z();
+                fTrackEndX[fNumPFParticles]           = tTrack->End().X();
+                fTrackEndY[fNumPFParticles]           = tTrack->End().Y();
+                fTrackEndZ[fNumPFParticles]           = tTrack->End().Z();
+                fTrackEndDirX[fNumPFParticles]        = tTrack->EndDirection().X();
+                fTrackEndDirY[fNumPFParticles]        = tTrack->EndDirection().Y();
+                fTrackEndDirZ[fNumPFParticles]        = tTrack->EndDirection().Z();
+                fDistToEdge[fNumPFParticles]          = trackDistToEdge;
+                fCosmicGeoScore[fNumPFParticles]      = cosmicTagVal;
+                fCosmicGeoTag[fNumPFParticles]        = cosmicTypeVal;
+                fFlashScore[fNumPFParticles]          = flashTagVal;
             }
             
             fNumPFParticles++;
         }
         
         // We can't proceed if we have run off the end of our allocated space
-        if (fNumMcParticles >= fMaxEntries) break;
+        if (fNumMcParticles >= fMaxEntries)
+        {
+            std::cout << "==> PFParticleMcAna exceeding particle with hits count: " << fNumMcParticles << std::endl;
+            break;
+        }
     }
 
     fAnaTree->Fill();
@@ -890,8 +1234,16 @@ void PFParticleMcAna::MakeHitParticleMaps(const std::vector<sim::MCHitCollection
         {
             const std::vector<sim::MCHit>& mcHitVec = mcHitCollectionVec[channel];
             
-            int start_tdc = timeService->TPCTick2TDC( hit.StartTick() );
-            int end_tdc   = timeService->TPCTick2TDC( hit.EndTick()   );
+            //int start_tdc = timeService->TPCTick2TDC( hit.StartTick() );
+            //int end_tdc   = timeService->TPCTick2TDC( hit.EndTick()   );
+            
+            int start_tdc    = timeService->TPCTick2TDC( hit.StartTick() );
+            int end_tdc      = timeService->TPCTick2TDC( hit.EndTick()   );
+            int hitStart_tdc = timeService->TPCTick2TDC( hit.PeakTime() - 3.*hit.SigmaPeakTime() );
+            int hitEnd_tdc   = timeService->TPCTick2TDC( hit.PeakTime() + 3.*hit.SigmaPeakTime() );
+            
+            start_tdc = std::max(start_tdc, hitStart_tdc);
+            end_tdc   = std::min(end_tdc,   hitEnd_tdc  );
             
             sim::MCHit startTime;
             sim::MCHit endTime;
@@ -904,15 +1256,40 @@ void PFParticleMcAna::MakeHitParticleMaps(const std::vector<sim::MCHitCollection
             
             if (startItr != mcHitVec.end())
             {
+                double totCharge = 0.;
+//                size_t itrDist   = std::distance(startItr, endItr);
+                
+                for(auto tmpItr = startItr; tmpItr != endItr; tmpItr++) totCharge += (*tmpItr).Charge();
+                
+                if (!(totCharge > 0.))
+                {
+//                    std::cout << "******** zero charge hit? *******" << std::endl;
+//                    std::cout << hit << std::endl;
+                    continue;
+                }
+                
                 while(startItr != endItr)
                 {
-                    int trackID = (*startItr++).PartTrackId();
+                    double fracCharge = (*startItr).Charge() / totCharge;
+                    int    trackID    = (*startItr++).PartTrackId();
+                    
+                    // skip if no real contribution to the charge?
+                    if (fracCharge < 0.01)
+                    {
+//                        std::cout << ">>>> skipping due to low fraction charge contribution: " << hit.SummedADC() << ", " << totCharge << ", " << fracCharge << ", " << itrDist << std::endl;
+                        continue;
+                    }
                     
                     if (trackID < 0)
                     {
                         trackID = -trackID;
                         fNegTrackIds++;
                     }
+                    
+//                    if (trackID == 34)
+//                    {
+//                        std::cout << "**Hit matching found trackID == 34, channel: " << channel << ", hit: " << hit << std::endl;
+//                    }
                     
                     hitToParticleMap[&hit].insert(trackID);
                     particleToHitMap[trackID].insert(&hit);
@@ -935,7 +1312,7 @@ class PFParticleMcAna::SortPFParticleVec
 public:
     SortPFParticleVec(const PFParticleMcAna::PFParticleHitCntMap& pfPartCntMap) : fPFPartCntMap(pfPartCntMap) {}
     
-    bool operator()(const recob::PFParticle* left, const recob::PFParticle* right)
+    bool operator()(const art::Ptr<recob::PFParticle>& left, const art::Ptr<recob::PFParticle>& right)
     {
         size_t numHitsLeft  = fPFPartCntMap.at(left);
         size_t numHitsRight = fPFPartCntMap.at(right);
@@ -946,7 +1323,7 @@ private:
     const PFParticleMcAna::PFParticleHitCntMap& fPFPartCntMap;
 };
 
-// Length of reconstructed track.
+// Build maps for PFParticles
 //----------------------------------------------------------------------------
 void PFParticleMcAna::MakePFParticleMaps(const art::Event&                                   event,
                                          const art::Handle<std::vector<recob::PFParticle> >& pfParticleHandle,
@@ -973,7 +1350,7 @@ void PFParticleMcAna::MakePFParticleMaps(const art::Event&                      
         art::Ptr<recob::PFParticle> pfParticle(pfParticleHandle,pfPartIdx);
         
         // Get the list of clusters associated to this PFParticle
-        std::vector<art::Ptr<recob::Cluster> > clusterVec = pfParticleClusterAssns.at(pfPartIdx);
+        std::vector<art::Ptr<recob::Cluster> > clusterVec = pfParticleClusterAssns.at(pfParticle.key());
         
         // Number 2D hits this PFParticle
         int numPfParticleHits(0);
@@ -982,8 +1359,8 @@ void PFParticleMcAna::MakePFParticleMaps(const art::Event&                      
         // create and fill an instance of a TrackIDToHitMap.
         // So, for a given PFParticle we will have a map of the track ID's (MCParticles)
         // and the hits that they contributed energy too
-        pfParticleToTrackHit2DMap[pfParticle.get()] = TrackIDToHit2DMap();
-        TrackIDToHit2DMap& trackIdToHit2DMap        = pfParticleToTrackHit2DMap[pfParticle.get()];
+        pfParticleToTrackHit2DMap[pfParticle] = TrackIDToHit2DMap();
+        TrackIDToHit2DMap& trackIdToHit2DMap  = pfParticleToTrackHit2DMap[pfParticle];
         
         // Loop over the associated clusters
         for(const auto& cluster : clusterVec)
@@ -999,7 +1376,7 @@ void PFParticleMcAna::MakePFParticleMaps(const art::Event&                      
             }
             
             // Keep track of this to hopefully save some time later
-            pfParticleHitCntMap[pfParticle.get()] += hitVec.size();
+            pfParticleHitCntMap[pfParticle] += hitVec.size();
             
             // Something to count MCParticles contributing here
             std::set<int> trackIdCntSet;
@@ -1039,7 +1416,7 @@ void PFParticleMcAna::MakePFParticleMaps(const art::Event&                      
             // Now spin through the trackIdToHit2DMap to build the reverse map of above, taking track ID's to PFParticles...
             for (const auto& trackItr : trackIdToHit2DMap)
             {
-                trackIDToPFParticleVecMap[trackItr.first].push_back(pfParticle.get());
+                trackIDToPFParticleVecMap[trackItr.first].push_back(pfParticle);
             }
         }
         else
@@ -1052,6 +1429,110 @@ void PFParticleMcAna::MakePFParticleMaps(const art::Event&                      
     for (auto& trackItr : trackIDToPFParticleVecMap)
     {
         std::sort(trackItr.second.begin(), trackItr.second.end(), SortPFParticleVec(pfParticleHitCntMap));
+    }
+    
+    return;
+}
+    
+// This will be used to sort PFParticles in the map below
+class PFParticleMcAna::SortKTrackVec
+{
+    /**
+     * @brief This is used to sort "Hough Clusters" by the maximum entries in a bin
+     */
+public:
+    SortKTrackVec(const PFParticleMcAna::KTrackHitCntMap& kTrackCntMap) : fKTrackCntMap(kTrackCntMap) {}
+    
+    bool operator()(const art::Ptr<recob::Track>& left, const art::Ptr<recob::Track>& right)
+    {
+        size_t numHitsLeft  = fKTrackCntMap.at(left);
+        size_t numHitsRight = fKTrackCntMap.at(right);
+        
+        return numHitsLeft > numHitsRight;
+    }
+private:
+    const PFParticleMcAna::KTrackHitCntMap& fKTrackCntMap;
+};
+    
+// Build maps for PFParticles
+//----------------------------------------------------------------------------
+void PFParticleMcAna::MakeKTrackMaps(const art::Event&                              event,
+                                     const art::Handle<std::vector<recob::Track> >& trackHandle,
+                                     const HitToParticleMap&                        hitToParticleMap,
+                                     KTrackToTrackHit2DMap&                         kTrackToTrackHit2DMap,
+                                     TrackIDToKTrackVecMap&                         trackIDtoKTrackVecMap,
+                                     KTrackHitCntMap&                               kTrackHitCntMap)
+{
+    // Recover track to hit associations
+    art::FindManyP<recob::Hit> kTrackHitAssns(trackHandle, event, fTrackProducerLabel);
+    
+    // Commence looping over Track
+    for(size_t kTrackIdx = 0; kTrackIdx < trackHandle->size(); kTrackIdx++)
+    {
+        // Get our PFParticle
+        art::Ptr<recob::Track> kTrack(trackHandle,kTrackIdx);
+        
+        // To categorize the fit track (associate to MCParticle), we will
+        // create and fill an instance of a TrackIDToHitMap.
+        // So, for a given PFParticle we will have a map of the track ID's (MCParticles)
+        // and the hits that they contributed energy too
+        kTrackToTrackHit2DMap[kTrack]         = TrackIDToHit2DMap();
+        TrackIDToHit2DMap& trackIdToHit2DMap  = kTrackToTrackHit2DMap[kTrack];
+        
+        // Try to recover the hits associated to this track
+        std::vector<art::Ptr<recob::Hit> > hitVec = kTrackHitAssns.at(kTrack.key());
+        
+        // Keep track of this to hopefully save some time later
+        kTrackHitCntMap[kTrack] = hitVec.size();
+            
+        // Something to count MCParticles contributing here
+        std::set<int> trackIdCntSet;
+        int           nMultiParticleHits(0);
+        int           nNoParticleHits(0);
+        
+        // To fill out this map we now loop over the recovered Hit2D's and stuff into the map
+        for (const auto& hit : hitVec)
+        {
+            // Given the Hit2D, recover the list of asscociated track ID's (MCParticles)
+            HitToParticleMap::const_iterator hitToParticleMapItr = hitToParticleMap.find(hit.get());
+            
+            if (hitToParticleMapItr != hitToParticleMap.end())
+            {
+                // More than one MCParticle can contribute energy to make a given hit
+                // So loop over the track ID's for this hit
+                for(const auto& trackId : hitToParticleMapItr->second)
+                {
+                    trackIdToHit2DMap[trackId].insert(hit);
+                    trackIdCntSet.insert(trackId);
+                }
+                
+                if (hitToParticleMapItr->second.size() > 1) nMultiParticleHits++;
+            }
+            else
+            {
+                nNoParticleHits++;
+            }
+        }
+        
+        // Make sure something happened here...
+        if (!trackIdToHit2DMap.empty())
+        {
+            // Now spin through the trackIdToHit2DMap to build the reverse map of above, taking track ID's to PFParticles...
+            for (const auto& trackItr : trackIdToHit2DMap)
+            {
+                trackIDtoKTrackVecMap[trackItr.first].push_back(kTrack);
+            }
+        }
+        else
+        {
+            mf::LogDebug("PFParticleMcAna") << "***>> No Track to KTrack match made for run " << fRun << ", event: " << fEvent << std::endl;
+        }
+    } // end of loop over the Track collection
+    
+    // One last spin through to sort the KTracks in the track ID to PFParticle map
+    for (auto& trackItr : trackIDtoKTrackVecMap)
+    {
+        std::sort(trackItr.second.begin(), trackItr.second.end(), SortKTrackVec(kTrackHitCntMap));
     }
     
     return;
@@ -1083,40 +1564,38 @@ double PFParticleMcAna::length(const simb::MCParticle& part, double dx,
                               TVector3& start, TVector3& end, TVector3& startmom, TVector3& endmom,
                               unsigned int tpc, unsigned int cstat)
 {
-    // Get services.
-    
-    art::ServiceHandle<geo::Geometry> geom;
-    art::ServiceHandle<util::DetectorProperties> detprop;
     
     // Get fiducial volume boundary.
+    double xmin = -0.1;
+    double xmax = 2.*fGeometry->DetHalfWidth() + 0.1;
+    double ymin = -fGeometry->DetHalfHeight() + 0.1;
+    double ymax =  fGeometry->DetHalfHeight() + 0.1;
+    double zmin = -0.1;
+    double zmax = fGeometry->DetLength() + 0.1;
     
-    //double xmin = 0.;
-    //double xmax = 2.*geom->DetHalfWidth();
-    //double ymin = -geom->DetHalfHeight();
-    //double ymax = geom->DetHalfHeight();
-    //double zmin = 0.;
-    //double zmax = geom->DetLength();
-    double xmin = 0.; //-2.*geom->DetHalfWidth();
-    double xmax = 2.*geom->DetHalfWidth(); //2.*2.*geom->DetHalfWidth();
-    double ymin = -(1.1*geom->DetHalfHeight());
-    double ymax =  (1.1*geom->DetHalfHeight());
-    double zmin = 0.;
-    double zmax = geom->DetLength();
-    
-    double readOutWindowSize = detprop->ReadOutWindowSize();
+    double readOutWindowSize = fDetectorProperties->ReadOutWindowSize();
     
     double result = 0.;
     TVector3 disp;
     int n = part.NumberTrajectoryPoints();
     bool first = true;
     
+    // The following for debugging purposes
+    int findTrackID(-1);
+    
+    if (part.TrackId() == findTrackID) std::cout << ">>> length, mcpart: " << part << std::endl;
+    
+    // Loop over the complete collection of trajectory points
     for(int i = 0; i < n; ++i)
     {
         TVector3 pos = part.Position(i).Vect();
         
-        // Make fiducial cuts.  Require the particle to be within the physical volume of
-        // the tpc, and also require the apparent x position to be within the expanded
-        // readout frame.
+        // Make fiducial cuts.
+        // There are two sets here:
+        // 1) We check the original x,y,z position of the trajectory points and require they be
+        //    within the confines of the physical TPC
+        // 2) We then check the timing of the presumed hit and make sure it lies within the
+        //    readout window for this simulation
         
         if(pos.X() >= xmin &&
            pos.X() <= xmax &&
@@ -1126,7 +1605,8 @@ double PFParticleMcAna::length(const simb::MCParticle& part, double dx,
            pos.Z() <= zmax)
         {
             pos[0] += dx;
-            double ticks = detprop->ConvertXToTicks(pos[0], 0, 0, 0);
+            double ticks = fDetectorProperties->ConvertXToTicks(pos[0], 0, 0, 0);
+            
             if(ticks >= 0. && ticks < readOutWindowSize)
             {
                 if(first)
@@ -1144,11 +1624,41 @@ double PFParticleMcAna::length(const simb::MCParticle& part, double dx,
                 end = pos;
                 endmom = part.Momentum(i).Vect();
             }
+            
+            if (part.TrackId() == findTrackID)
+            {
+                std::cout << ">>> Track #" << findTrackID << ", pos: " << pos.X() << ", " << pos.Y() << ", " << pos.Z() << ", ticks: " << ticks << ", nearest Y wire: ";
+                double worldLoc[] = {pos.X(),pos.Y(),pos.Z()};
+                geo::WireID wireID = fGeometry->NearestWireID(worldLoc, 2);
+                std::cout << wireID << std::endl;
+            }
         }
     }
     
     return result;
 }
+    
+double PFParticleMcAna::distanceToTPCEdge(const TVector3& position) const
+{
+    double distToEdge(fGeometry->DetLength());
+    
+    // The coordinate system has x = 0 at anode plane, y = 0 in center and z = 0 at upstream boundary...
+    // Get distance to X edge first
+    double xDistance = std::max(fGeometry->DetHalfWidth() - fabs(position.X() - fGeometry->DetHalfWidth()), 0.);
+    
+    distToEdge = std::min(xDistance, distToEdge);
+    
+    // Get the distance to the Y edge next
+    double yDistance = std::max(fGeometry->DetHalfHeight() - fabs(position.Y()), 0.);
+    
+    distToEdge = std::min(yDistance, distToEdge);
+    
+    // And now Z
+    double zDistance = std::max(0.5*fGeometry->DetLength() - fabs(position.Z() - 0.5*fGeometry->DetLength()), 0.);
+
+    return std::min(zDistance, distToEdge);
+}
+
 
 // This macro has to be defined for this module to be invoked from a
 // .fcl file; see PFParticleMcAna.fcl for more information.

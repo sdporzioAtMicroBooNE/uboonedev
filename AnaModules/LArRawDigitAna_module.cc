@@ -22,6 +22,9 @@
 #include "SimpleTypesAndConstants/geo_types.h"
 #include "RawData/RawDigit.h"
 #include "RawData/raw.h"
+#include "RecoBase/Hit.h"
+#include "CalibrationDBI/Interface/IDetPedestalService.h"
+#include "CalibrationDBI/Interface/IDetPedestalProvider.h"
 
 //#include "cetlib/search_path.h"
 #include "cetlib/cpu_timer.h"
@@ -102,8 +105,9 @@ private:
 
     // The parameters we'll read from the .fcl file.
     std::string fDigitModuleLabel;           // The name of the producer that created raw digits
-    bool        fUseChannelPedestals;        // Use channel-by-channel pedestals
+    std::string fHitProducerLabel;
     bool        fWritePedestals;             // Output new file of pedestals
+    float       fTruncMeanFraction;          // Fraction for truncated mean
 
     // Pointers to the histograms we'll create.
     TH1D*     fAdcCntHist[3];
@@ -113,6 +117,23 @@ private:
     TProfile* fRmsValProf[3];
     
     TProfile* fFFTHist;
+    
+    TH1D*     fHitsByWire[3];
+    TProfile* fHitsByWireProf[3];
+    TH1D*     fPulseHeight[3];
+    TH1D*     fRMS[3];
+    TH1D*     fSigmaPeakTime[3];
+    TH1D*     fHitIndex[3];
+    TH1D*     fROIlength[3];
+    TH1D*     fChi2[3];
+    TH2D*     fPHvsRMS[3];
+    TH2D*     fPHvsSigma[3];
+    TH2D*     fROIvsPH[3];
+    TH2D*     fROIvsChi[3];
+    
+    TH1D*     fSelPulseHeight[3];
+    
+    TH1D*     fTimeHitCount[3];
 
     // The variables that will go into the n-tuple.
     int fEvent;
@@ -120,12 +141,12 @@ private:
     int fSubRun;
     int fNumEvents;
     
-    std::vector<short>  fPedestalVec;
-    std::vector<double> fChannelPedVec;
+    std::vector<std::vector<double>> fChannelPedVec;
 
     // Other variables that will be shared between different methods.
     art::ServiceHandle<geo::Geometry>            fGeometry;       // pointer to Geometry service
     art::ServiceHandle<util::DetectorProperties> fDetectorProperties;
+    const lariov::IDetPedestalProvider&          fPedestalRetrievalAlg; ///< Keep track of an instance to the pedestal retrieval alg
 
     double                                       fElectronsToGeV; // conversion factor
 
@@ -139,7 +160,9 @@ private:
 //-----------------------------------------------------------------------
 // Constructor
 LArRawDigitAna::LArRawDigitAna(fhicl::ParameterSet const& parameterSet)
-    : EDAnalyzer(parameterSet)
+    : EDAnalyzer(parameterSet),
+      fPedestalRetrievalAlg(art::ServiceHandle<lariov::IDetPedestalService>()->GetPedestalProvider())
+
 {
     // Read in the parameters from the .fcl file.
     this->reconfigure(parameterSet);
@@ -187,47 +210,58 @@ void LArRawDigitAna::beginJob()
     
     fFFTHist       = tfs->make<TProfile>("FFT1700", "FFT1700;Tick", 9600, 0., 9600., 0., 10000.);
     
+    fHitsByWire[0]     = tfs->make<TH1D>("HitsByWire0", ";Wire #", fGeometry->Nwires(0), 0., fGeometry->Nwires(0));
+    fHitsByWire[1]     = tfs->make<TH1D>("HitsByWire1", ";Wire #", fGeometry->Nwires(1), 0., fGeometry->Nwires(1));
+    fHitsByWire[2]     = tfs->make<TH1D>("HitsByWire2", ";Wire #", fGeometry->Nwires(2), 0., fGeometry->Nwires(2));
+    fHitsByWireProf[0] = tfs->make<TProfile>("HitsByWireProf0", ";Wire #", fGeometry->Nwires(0), 0., fGeometry->Nwires(0), 0., 250.);
+    fHitsByWireProf[1] = tfs->make<TProfile>("HitsByWireProf1", ";Wire #", fGeometry->Nwires(1), 0., fGeometry->Nwires(1), 0., 250.);
+    fHitsByWireProf[2] = tfs->make<TProfile>("HitsByWireProf2", ";Wire #", fGeometry->Nwires(2), 0., fGeometry->Nwires(2), 0., 250.);
+    fPulseHeight[0]    = tfs->make<TH1D>("PulseHeight0", "; PH(ADC)",      500, 0., 250.);
+    fPulseHeight[1]    = tfs->make<TH1D>("PulseHeight1", "; PH(ADC)",      500, 0., 250.);
+    fPulseHeight[2]    = tfs->make<TH1D>("PulseHeight2", "; PH(ADC)",      500, 0., 250.);
+    fRMS[0]            = tfs->make<TH1D>("RMS0",         "; RMS(ticks)",   100, 0.,  20.);
+    fRMS[1]            = tfs->make<TH1D>("RMS1",         "; RMS(ticks)",   100, 0.,  20.);
+    fRMS[2]            = tfs->make<TH1D>("RMS2",         "; RMS(ticks)",   100, 0.,  20.);
+    fSigmaPeakTime[0]  = tfs->make<TH1D>("SigPeak0",     "; sigma(ticks)", 100, 0.,  20.);
+    fSigmaPeakTime[1]  = tfs->make<TH1D>("SigPeak1",     "; sigma(ticks)", 100, 0.,  20.);
+    fSigmaPeakTime[2]  = tfs->make<TH1D>("SigPeak2",     "; sigma(ticks)", 100, 0.,  20.);
+    fHitIndex[0]       = tfs->make<TH1D>("HitIndex0",    "; index",         20, 0.,  20.);
+    fHitIndex[1]       = tfs->make<TH1D>("HitIndex1",    "; index",         20, 0.,  20.);
+    fHitIndex[2]       = tfs->make<TH1D>("HitIndex2",    "; index",         20, 0.,  20.);
+    fROIlength[0]      = tfs->make<TH1D>("ROIlen0",      "; # bins",       200, 0., 200.);
+    fROIlength[1]      = tfs->make<TH1D>("ROIlen1",      "; # bins",       200, 0., 200.);
+    fROIlength[2]      = tfs->make<TH1D>("ROIlen2",      "; # bins",       200, 0., 200.);
+    fChi2[0]           = tfs->make<TH1D>("Chi20",        "; chi2",         200, 0., 100.);
+    fChi2[1]           = tfs->make<TH1D>("Chi21",        "; chi2",         200, 0., 100.);
+    fChi2[2]           = tfs->make<TH1D>("Chi22",        "; chi2",         200, 0., 100.);
+    fPHvsRMS[0]        = tfs->make<TH2D>("PHvsRMS0",     "RMS;PH(ADC)",    200, 0., 100., 100, 0.,  20.);
+    fPHvsRMS[1]        = tfs->make<TH2D>("PHvsRMS1",     "RMS;PH(ADC)",    200, 0., 100., 100, 0.,  20.);
+    fPHvsRMS[2]        = tfs->make<TH2D>("PHvsRMS2",     "RMS;PH(ADC)",    200, 0., 100., 100, 0.,  20.);
+    fPHvsSigma[0]      = tfs->make<TH2D>("PHvsSigma0",   "Sigma;PH(ADC)",  200, 0., 100., 100, 0.,  20.);
+    fPHvsSigma[1]      = tfs->make<TH2D>("PHvsSigma1",   "Sigma;PH(ADC)",  200, 0., 100., 100, 0.,  20.);
+    fPHvsSigma[2]      = tfs->make<TH2D>("PHvsSigma2",   "Sigma;PH(ADC)",  200, 0., 100., 100, 0.,  20.);
+    fROIvsPH[0]        = tfs->make<TH2D>("ROIvsPH0",     "PH (ADC); ROI",  200, 0., 200., 200, 0., 100.);
+    fROIvsPH[1]        = tfs->make<TH2D>("ROIvsPH1",     "PH (ADC); ROI",  200, 0., 200., 200, 0., 100.);
+    fROIvsPH[2]        = tfs->make<TH2D>("ROIvsPH2",     "PH (ADC); ROI",  200, 0., 200., 200, 0., 100.);
+    fROIvsChi[0]       = tfs->make<TH2D>("ROIvsChi0",    "Chi; ROI",       200, 0., 100., 200, 0., 100.);
+    fROIvsChi[1]       = tfs->make<TH2D>("ROIvsChi1",    "Chi; ROI",       200, 0., 100., 200, 0., 100.);
+    fROIvsChi[2]       = tfs->make<TH2D>("ROIvsChi2",    "Chi; ROI",       200, 0., 100., 200, 0., 100.);
+    
+    fSelPulseHeight[0] = tfs->make<TH1D>("SelPulseHgt0", "; PH(ADC)",      500, 0., 250.);
+    fSelPulseHeight[1] = tfs->make<TH1D>("SelPulseHgt1", "; PH(ADC)",      500, 0., 250.);
+    fSelPulseHeight[2] = tfs->make<TH1D>("SelPulseHgt2", "; PH(ADC)",      500, 0., 250.);
+    
+    fTimeHitCount[0]   = tfs->make<TH1D>("TimeHitCnt0",  "Count;Ticks",    9600, 0., 9600.);
+    fTimeHitCount[1]   = tfs->make<TH1D>("TimeHitCnt1",  "Count;Ticks",    9600, 0., 9600.);
+    fTimeHitCount[2]   = tfs->make<TH1D>("TimeHitCnt2",  "Count;Ticks",    9600, 0., 9600.);
+    
     // zero out the event counter
     fNumEvents = 0;
     
     // Set up our channel pedestal vec (for output) if needed
     fChannelPedVec.clear();
     
-    if (fWritePedestals) fChannelPedVec.resize(fGeometry->Nchannels(), 0.);
-    
-    // Set up our channel by channel pedestals if requested
-    fPedestalVec.clear();
-    
-    if (fUseChannelPedestals)
-    {
-        fPedestalVec.resize(fGeometry->Nchannels(), 0.);
-
-        std::ifstream pedestalFile("pedestalRaw.txt");
-        
-        size_t totalCount(0);
-        int    channel;
-        float  pedestal;
-        
-        while(pedestalFile >> channel >> pedestal)
-        {
-            fPedestalVec[channel] = short(pedestal+0.5);
-            totalCount++;
-            
-            if (totalCount < 200) std::cout << "Read channel, pedestal: " << channel << ", " << pedestal << ", storing: " << fPedestalVec[channel] << std::endl;
-        }
-        
-        if (totalCount != fGeometry->Nchannels())
-        {
-            std::cout << "Did not read back correct number of channels..." << totalCount << std::endl;
-        }
-        
-        pedestalFile.close();
-    }
-    else
-    {
-        fPedestalVec.resize(4800, 2045);                   // Set pedestal value for the U/V planes
-        fPedestalVec.resize(fGeometry->Nchannels(), 473);  // Set the pedestal value for the W plane
-    }
+    if (fWritePedestals) fChannelPedVec.resize(fGeometry->Nchannels());
 }
    
 //-----------------------------------------------------------------------
@@ -245,9 +279,10 @@ void LArRawDigitAna::reconfigure(fhicl::ParameterSet const& p)
 {
     // Read parameters from the .fcl file. The names in the arguments
     // to p.get<TYPE> must match names in the .fcl file.
-    fDigitModuleLabel    = p.get< std::string >("DigitModuleLabel",    "daq");
-    fUseChannelPedestals = p.get<bool>         ("UseChannelPedestals", false);
-    fWritePedestals      = p.get<bool>         ("WritePedestals",      false);
+    fDigitModuleLabel    = p.get< std::string >("DigitModuleLabel",    "daq"  );
+    fHitProducerLabel    = p.get< std::string >("HitModuleLabel",      "gauss");
+    fWritePedestals      = p.get<bool>         ("WritePedestals",      false  );
+    fTruncMeanFraction   = p.get<float>        ("TruncMeanFraction",   0.2    );
     
     return;
 }
@@ -264,6 +299,14 @@ void LArRawDigitAna::analyze(const art::Event& event)
     
     std::cout << "LArRawdigitAna - run/subrun/event: " << fRun << "/" << fSubRun << "/" << fEvent << std::endl;
     std::cout << "Geomtry expects " << fGeometry->Nwires(0) << " U wires, " << fGeometry->Nwires(1) << " V wires, " << fGeometry->Nwires(2) << std::endl;
+    std::cout << event.time().value() << std::endl;
+    std::cout << "Readout window size: " << fDetectorProperties->ReadOutWindowSize() << ", # time samples: " << fDetectorProperties->NumberTimeSamples() << ", offset: " << fDetectorProperties->TriggerOffset() << std::endl;
+    
+    double detHalfWidth = fGeometry->DetHalfWidth();
+    double lowTicks     = fDetectorProperties->ConvertXToTicks(0., 0,0,0);
+    double hiTicks      = fDetectorProperties->ConvertXToTicks(2.*detHalfWidth, 0,0,0);
+    
+    std::cout << "TPC volume low ticks: " << lowTicks << ", high ticks: " << hiTicks << std::endl;
     
     // Read in the digit List object(s).
     art::Handle< std::vector<raw::RawDigit> > digitVecHandle;
@@ -277,17 +320,10 @@ void LArRawDigitAna::analyze(const art::Event& event)
     raw::ChannelID_t channel     = raw::InvalidChannelID; // channel number
     unsigned int     maxChannels = fGeometry->Nchannels();
     
-    // Define vectors to hold info
-    std::vector<int>    channelHitVec;
-    std::vector<double> channelAveVec;
-    std::vector<double> channelRmsVec;
-    
-    channelHitVec.resize(maxChannels, 0);
-    channelAveVec.resize(maxChannels, 0.);
-    channelRmsVec.resize(maxChannels, 0.);
-    
     // Define eyeball pedestals for raw adcs
     //short int pedestals[] = {2045, 2045, 473};
+    
+    std::cout << "***>> In LArRawDigitAna with RawDigit vec of size: " << digitVecHandle->size() << std::endl;
     
     // Commence looping over raw digits
     for(size_t rdIter = 0; rdIter < digitVecHandle->size(); ++rdIter)
@@ -296,6 +332,8 @@ void LArRawDigitAna::analyze(const art::Event& event)
         art::Ptr<raw::RawDigit> digitVec(digitVecHandle, rdIter);
         
         channel = digitVec->Channel();
+        
+        bool goodChan(true);
        
         // Decode the channel and make sure we have a valid one
         std::vector<geo::WireID> wids;
@@ -305,14 +343,60 @@ void LArRawDigitAna::analyze(const art::Event& event)
         catch(...)
         {
             //std::cout << "===>> Found illegal channel with id: " << channel << std::endl;
-            continue;
+            goodChan = false;
         }
-        
-        if (channel >= maxChannels)
+
+        // ********************************************************************************
+        // Handle out of range channels
+        if (channel >= maxChannels || !goodChan)
         {
-            //std::cout << "***>> Found channel at edge of allowed: " << channel << ", maxChannel: " << maxChannels << std::endl;
+            std::cout << "***>> Found channel at edge of allowed: " << channel << ", maxChannel: " << maxChannels << std::endl;
+            
+            unsigned int dataSize = digitVec->Samples();
+            
+            // vector holding uncompressed adc values
+            std::vector<short> rawadc(dataSize);
+            
+            // And now uncompress
+            raw::Uncompress(digitVec->ADCs(), rawadc, digitVec->Compression());
+
+            int    adcCnt   = 0;
+            double aveVal   = 0.;
+            double rmsVal   = 0.;
+            
+            // Loop over the data to get the mean using the eyeball pedestals
+            for(size_t bin = 0; bin < dataSize; ++bin)
+            {
+                float rawAdc = rawadc[bin];
+                
+                adcCnt++;
+                aveVal += rawAdc;
+            }
+            
+            aveVal /= double(adcCnt);
+            
+            std::vector<float> adcDiffVec;
+            
+            adcDiffVec.resize(dataSize, 0.);
+            
+            // Go through again to get the rms
+            for(size_t bin = 0; bin < dataSize; ++bin)
+            {
+                float rawAdc  = rawadc[bin];
+                float adcDiff = rawAdc - aveVal;
+                
+                rmsVal += adcDiff * adcDiff;
+                
+                adcDiffVec[bin] = adcDiff;
+            }
+            
+            rmsVal = std::sqrt(rmsVal/double(adcCnt));
+            
+            std::cout << "*** Channel out of range: " << channel << ", ave adc: " << aveVal << ", rms: " << rmsVal << std::endl;
+            
             continue;
         }
+        // ********************************************************************************
         
         // Recover plane and wire in the plane
         unsigned int view = wids[0].Plane;
@@ -325,72 +409,149 @@ void LArRawDigitAna::analyze(const art::Event& event)
         
         // And now uncompress
         raw::Uncompress(digitVec->ADCs(), rawadc, digitVec->Compression());
+/*
+        // Make a copy of the above to do a truncated mean with
+        std::vector<short> rawAdcVec = rawadc;
+
+        // Sort it to get smallest to largest
+        std::sort(rawAdcVec.begin(),rawAdcVec.end());
         
-        int    adcCnt   = 0;
-        double aveVal   = 0.;
-        double rmsVal   = 0.;
-        short  pedestal = fPedestalVec[channel];
+        // Drop 20% of hits -> determine 10% of total dataSize
+        size_t numToDrop = 0.5 * fTruncMeanFraction * dataSize;
         
-        // Loop over the data to get the mean using the eyeball pedestals
-        for(size_t bin = 0; bin < dataSize; ++bin)
+        // Set up for truncated mean
+        double truncMean = 0.;
+        
+        // Get mean of remaining values
+        for(size_t idx = numToDrop; idx < dataSize - numToDrop; idx++)
         {
-            float rawAdcLessPed = rawadc[bin] - pedestal;
-            
-            adcCnt++;
-            aveVal += rawAdcLessPed;
+            truncMean += rawAdcVec[idx];
         }
         
-        aveVal /= double(adcCnt);
+        truncMean /= double(dataSize - 2 * numToDrop);
+*/
+        // Try centering on most popular bin
+        std::map<short,short> binAdcMap;
         
-        std::vector<float> adcDiffVec;
+        for(const auto& adcVal : rawadc)
+        {
+            binAdcMap[adcVal]++;
+        }
         
-        adcDiffVec.resize(dataSize, 0.);
+        // Find the max bin
+        short binMax(-1);
+        short binMaxCnt(0);
+        
+        for(const auto& binAdcItr : binAdcMap)
+        {
+            if (binAdcItr.second > binMaxCnt)
+            {
+                binMax    = binAdcItr.first;
+                binMaxCnt = binAdcItr.second;
+            }
+        }
+        
+        int minNumBins = (1. - fTruncMeanFraction) * dataSize;
+        int curBinCnt(binMaxCnt);
+        
+        double peakValue(curBinCnt * binMax);
+        double truncMean(peakValue);
+        
+        short binOffset(1);
+        
+        while(curBinCnt < minNumBins)
+        {
+            if (binAdcMap[binMax-binOffset])
+            {
+                curBinCnt += binAdcMap[binMax-binOffset];
+                truncMean += binAdcMap[binMax-binOffset] * (binMax - binOffset);
+            }
+            
+            if (binAdcMap[binMax+binOffset])
+            {
+                curBinCnt += binAdcMap[binMax+binOffset];
+                truncMean += binAdcMap[binMax+binOffset] * (binMax + binOffset);
+            }
+            
+            binOffset++;
+        }
+        
+        truncMean /= double(curBinCnt);
+        
+        binOffset  = 1;
+        
+        
+        int    rmsBinCnt(binMaxCnt);
+        double rmsVal(double(binMax)-truncMean);
+        
+        rmsVal *= double(rmsBinCnt) * rmsVal;
+        
+        // Second loop to get the rms
+        while(rmsBinCnt < minNumBins)
+        {
+            if (binAdcMap[binMax-binOffset] > 0)
+            {
+                int    binIdx  = binMax - binOffset;
+                int    binCnt  = binAdcMap[binIdx];
+                double binVals = double(binIdx) - truncMean;
+                
+                rmsBinCnt += binCnt;
+                rmsVal    += double(binCnt) * binVals * binVals;
+            }
+            
+            if (binAdcMap[binMax+binOffset] > 0)
+            {
+                int    binIdx  = binMax + binOffset;
+                int    binCnt  = binAdcMap[binIdx];
+                double binVals = double(binIdx) - truncMean;
+                
+                rmsBinCnt += binCnt;
+                rmsVal    += double(binCnt) * binVals * binVals;
+            }
+            
+            binOffset++;
+        }
+        
+        rmsVal = std::sqrt(std::max(0.,rmsVal / double(rmsBinCnt)));
+        
+/*
+        double rmsVal(0.);
         
         // Go through again to get the rms
-        for(size_t bin = 0; bin < dataSize; ++bin)
+        for(size_t bin = numToDrop; bin < dataSize-numToDrop; ++bin)
         {
-            float rawAdcLessPed = rawadc[bin]   - pedestal;
-            float adcDiff       = rawAdcLessPed - aveVal;
+            float rawAdcVal = rawAdcVec[bin];
+            float adcDiff   = rawAdcVal - truncMean;
             
             rmsVal += adcDiff * adcDiff;
-            
-            adcDiffVec[bin] = adcDiff;
         }
         
-        rmsVal = std::sqrt(rmsVal/double(adcCnt));
-        
-        channelHitVec[channel] = adcCnt;
-        channelAveVec[channel] = aveVal;
-        channelRmsVec[channel] = rmsVal;
+        rmsVal = std::sqrt(rmsVal/double(dataSize - 2 * numToDrop - 1));
         
         rmsVal = std::min(rmsVal, 99.9);
-
+*/
+        
+        // Set up to process the rawadc
+        float pedestal = fPedestalRetrievalAlg.PedMean(channel);
+        
         // Fill some histograms here
-        fAdcCntHist[view]->Fill(adcCnt,    1.);
-        fAveValHist[view]->Fill(aveVal,    1.);
-        fRmsValHist[view]->Fill(rmsVal,    1.);
+        fAveValHist[view]->Fill(std::max(-29.9, std::min(29.9,truncMean - pedestal)), 1.);
+        fRmsValHist[view]->Fill(rmsVal,       1.);
         fRmsValProf[view]->Fill(wire, rmsVal, 1.);
         
         // If we are outputting a pedestal file then do the work for that here
         if (fWritePedestals)
         {
-            std::sort(adcDiffVec.begin(), adcDiffVec.end(), std::less<float>());
+            fPedValHist[view]->Fill(truncMean, 1.);
             
-            size_t maxBin = 0.90 * dataSize;
-            float  aveRawAdc(0.);
-            
-            for(size_t bin = 0; bin < maxBin; bin++)
-            {
-                aveRawAdc += adcDiffVec[bin] + aveVal + pedestal;
-            }
-            
-            aveRawAdc /= float(maxBin);
-            
-            fPedValHist[view]->Fill(aveRawAdc, 1.);
-            
-            fChannelPedVec[channel] += aveRawAdc;
+            fChannelPedVec[channel].push_back(truncMean);
         }
         
+        if (abs(truncMean - pedestal) > 5)
+        {
+            std::cout << ">>> Pedestal mismatch, channel: " << channel << ", new value: " << truncMean << ", original: " << pedestal << std::endl;
+        }
+/*
         // Short aside to look at FFT
         if (view == 0 && wire == 408)
         {
@@ -420,8 +581,9 @@ void LArRawDigitAna::analyze(const art::Event& event)
                 
                 fFFTHist->Fill(bin, power, 1.);
             }
-            
+
         }
+ */
     }
 /*
     // Spin through the channelHitVec to look for missing channels
@@ -448,6 +610,107 @@ void LArRawDigitAna::analyze(const art::Event& event)
         }
     }
 */
+    
+    // Do a quick check of the reco hit finding
+    art::Handle< std::vector<recob::Hit> > hitHandle;
+    event.getByLabel(fHitProducerLabel, hitHandle);
+
+    if (hitHandle.isValid())
+    {
+        std::vector<std::vector<size_t>> channelHitVec;
+        
+        std::vector<std::vector<std::vector<const recob::Hit*>>> planeTimeHitVec;
+        
+        planeTimeHitVec.resize(3);
+        
+        planeTimeHitVec[0].resize(9600);
+        planeTimeHitVec[1].resize(9600);
+        planeTimeHitVec[2].resize(9600);
+        
+        channelHitVec.resize(maxChannels);
+        
+        // Commence looping over raw digits
+        for(size_t rdIter = 0; rdIter < hitHandle->size(); ++rdIter)
+        {
+            // get the reference to the current raw::RawDigit
+            art::Ptr<recob::Hit> hitPtr(hitHandle, rdIter);
+            
+            // Keep track if the index in our vector of vectors
+            channelHitVec[hitPtr->Channel()].push_back(rdIter);
+            
+            // Keep track of the hit itself
+            size_t view = hitPtr->View();
+            size_t time = hitPtr->PeakTime();
+            
+            planeTimeHitVec[view][time].push_back(hitPtr.get());
+        }
+        
+        // Now pass through again to do some histogramming
+        for (size_t channel = 0; channel < maxChannels; channel++)
+        {
+            std::vector<geo::WireID> wids = fGeometry->ChannelToWire(channel);
+            
+            // Recover plane and wire in the plane
+            unsigned int view = wids[0].Plane;
+            unsigned int wire = wids[0].Wire;
+            
+            // Fill the outer level hists
+            fHitsByWireProf[view]->Fill(wire, channelHitVec[channel].size());
+            
+            // loop through hits
+            for(const auto& rdIter : channelHitVec[channel])
+            {
+                art::Ptr<recob::Hit> hitPtr(hitHandle, rdIter);
+                
+                double pulseHeight   = std::min(float(249.),  hitPtr->PeakAmplitude());
+                double RMS           = std::min(float(19.9),  hitPtr->RMS());
+                double sigmaPeakTime = std::min(float(19.9),  hitPtr->SigmaPeakTime());
+                double roiLength     = std::min(double(199.), double(hitPtr->EndTick() - hitPtr->StartTick()));
+                double chi2          = std::min(float(99.),   hitPtr->GoodnessOfFit());
+                int    hitIndex      = std::min(int(19),      int(hitPtr->LocalIndex()));
+                
+                fHitsByWire[view]->Fill(wire);
+                fPulseHeight[view]->Fill(pulseHeight);
+                fRMS[view]->Fill(RMS);
+                fSigmaPeakTime[view]->Fill(sigmaPeakTime);
+                fHitIndex[view]->Fill(hitIndex);
+                fPHvsRMS[view]->Fill(pulseHeight, RMS);
+                fPHvsSigma[view]->Fill(pulseHeight, sigmaPeakTime);
+                
+                if (hitIndex == 0)
+                {
+                    fROIlength[view]->Fill(roiLength);
+                }
+                
+                fChi2[view]->Fill(chi2);
+                fROIvsPH[view]->Fill(roiLength, pulseHeight);
+                fROIvsChi[view]->Fill(roiLength, chi2);
+                
+                if (view == 0)
+                {
+                    double cutVal = 2. * pulseHeight / 5.;
+                    
+                    if (RMS <= cutVal) fSelPulseHeight[view]->Fill(pulseHeight);
+                }
+                else if (view == 2)
+                {
+                    double cutVal = 1.75;
+                    
+                    if (pulseHeight < 100.) cutVal = -pulseHeight / 50. + 2.;
+                    
+                    if (RMS > cutVal) fSelPulseHeight[view]->Fill(pulseHeight);
+                }
+            }
+        }
+        
+        for(size_t view = 0; view < 3; view++)
+        {
+            for(size_t time = 0; time < 9600; time++)
+            {
+                fTimeHitCount[view]->Fill(time, planeTimeHitVec[view][time].size());
+            }
+        }
+    }
 
     return;
 }
@@ -461,15 +724,41 @@ void LArRawDigitAna::endJob()
         
         for(size_t idx = 0; idx < fGeometry->Nchannels(); idx++)
         {
-            //std::vector<geo::WireID> wids = fGeometry->ChannelToWire(idx);
+            double meanPedestal(0.);
+            double rmsPedestal(0.);
             
-            //pedestalFile << "pedestal[" << idx << "] = " << channelPedVec[idx] << ";\n"; //     view: " << wids[0].Plane << ", wire: " << wids[0].Wire << std::endl;
-            pedestalFile <<  idx << " " << fChannelPedVec[idx]/double(fNumEvents) << "\n"; //     view: " << wids[0].Plane << ", wire: " << wids[0].Wire << std::endl;
+            for(const auto& pedVal : fChannelPedVec[idx])
+            {
+                meanPedestal += pedVal;
+                rmsPedestal  += pedVal*pedVal;
+            }
+            
+            meanPedestal /= double(fChannelPedVec[idx].size());
+            rmsPedestal   = std::max(0.,(rmsPedestal - meanPedestal * meanPedestal) / double(fChannelPedVec[idx].size() - 1));
+            rmsPedestal   = sqrt(rmsPedestal);
+        
+            pedestalFile <<  idx << " " << meanPedestal << " " << rmsPedestal << "\n"; //     view: " << wids[0].Plane << ", wire: " << wids[0].Wire << std::endl;
         }
         
         pedestalFile.close();
     }
+/*
+    std::cout << "***************** Wires with no hits **********************" << std::endl;
     
+    // Look for channels which did not see any hits
+    for(size_t view = 0; view < fGeometry->Views().size(); view++)
+    {
+        for(size_t wire = 0; wire < fGeometry->Nwires(view); wire++)
+        {
+            double nHitsByWire = fHitsByWire[view]->GetBinContent(wire+1);
+            
+            if (nHitsByWire < 1)
+            {
+                std::cout << "  --> View: " << view << ", wire: " << wire << " has no hits" << std::endl;
+            }
+        }
+    }
+*/
     return;
 }
 
