@@ -25,6 +25,7 @@ art_make(BASENAME_ONLY
 			    RecoAlg
                             Cluster3DAlgs
 			    Simulation
+			    RawData
 			    RecoObjects
 			    RecoBase
 			    MCBase
