@@ -18,22 +18,23 @@
 #define PMTPickupAna_Module
 
 // LArSoft includes
-#include "Geometry/Geometry.h"
-#include "SimpleTypesAndConstants/geo_types.h"
-#include "RawData/RawDigit.h"
-#include "RawData/raw.h"
-#include "RecoBase/Hit.h"
-#include "RecoBase/Cluster.h"
-#include "RecoBase/PFParticle.h"
-#include "RecoBase/Track.h"
-#include "CalibrationDBI/Interface/IDetPedestalService.h"
-#include "CalibrationDBI/Interface/IDetPedestalProvider.h"
+#include "larcore/Geometry/Geometry.h"
+#include "larcore/SimpleTypesAndConstants/geo_types.h"
+#include "lardata/RawData/RawDigit.h"
+#include "lardata/RawData/raw.h"
+#include "lardata/RecoBase/Hit.h"
+#include "lardata/RecoBase/Cluster.h"
+#include "lardata/RecoBase/PFParticle.h"
+#include "lardata/RecoBase/Track.h"
+#include "larevt/CalibrationDBI/Interface/DetPedestalService.h"
+#include "larevt/CalibrationDBI/Interface/DetPedestalProvider.h"
 
 //#include "cetlib/search_path.h"
 #include "cetlib/cpu_timer.h"
-#include "Utilities/TimeService.h"
-#include "Utilities/AssociationUtil.h"
-#include "Utilities/DetectorProperties.h"
+#include "lardata/Utilities/AssociationUtil.h"
+#include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
+#include "lardata/DetectorInfoServices/LArPropertiesService.h"
+#include "lardata/DetectorInfoServices/DetectorClocksService.h"
 
 // Framework includes
 #include "art/Framework/Core/EDAnalyzer.h"
@@ -166,11 +167,10 @@ private:
     std::vector<std::vector<double>> fChannelPedVec;
 
     // Other variables that will be shared between different methods.
-    art::ServiceHandle<geo::Geometry>            fGeometry;       // pointer to Geometry service
-    art::ServiceHandle<util::DetectorProperties> fDetectorProperties;
-    const lariov::IDetPedestalProvider&          fPedestalRetrievalAlg; ///< Keep track of an instance to the pedestal retrieval alg
-
-    double                                       fElectronsToGeV; // conversion factor
+    const geo::GeometryCore*           fGeometry;             // pointer to Geometry service
+    const detinfo::DetectorProperties* fDetectorProperties;   ///< Detector properties service
+    const lariov::DetPedestalProvider& fPedestalRetrievalAlg; ///< Keep track of an instance to the pedestal retrieval alg
+    double                              fElectronsToGeV; // conversion factor
 
 }; // class PMTPickupAna
 
@@ -183,9 +183,12 @@ private:
 // Constructor
 PMTPickupAna::PMTPickupAna(fhicl::ParameterSet const& parameterSet)
     : EDAnalyzer(parameterSet),
-      fPedestalRetrievalAlg(art::ServiceHandle<lariov::IDetPedestalService>()->GetPedestalProvider())
+      fPedestalRetrievalAlg(*lar::providerFrom<lariov::DetPedestalService>())
 
 {
+    fGeometry = lar::providerFrom<geo::Geometry>();
+    fDetectorProperties = lar::providerFrom<detinfo::DetectorPropertiesService>();
+    
     // Read in the parameters from the .fcl file.
     this->reconfigure(parameterSet);
 }

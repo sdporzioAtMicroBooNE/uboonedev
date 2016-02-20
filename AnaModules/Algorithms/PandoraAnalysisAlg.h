@@ -23,15 +23,15 @@
 #include "art/Framework/Services/Optional/TFileService.h"
 #include "art/Framework/Core/FindManyP.h"
 #include "art/Framework/Principal/Event.h"
-#include "Geometry/Geometry.h"
-#include "Utilities/DetectorProperties.h"
+#include "larcore/Geometry/Geometry.h"
+#include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
 
-#include "RecoBase/Hit.h"
-#include "RecoBase/Cluster.h"
-#include "RecoBase/PFParticle.h"
-#include "RecoBase/Track.h"
-#include "RecoBase/Vertex.h"
-#include "RecoBase/Spacepoint.h"
+#include "lardata/RecoBase/Hit.h"
+#include "lardata/RecoBase/Cluster.h"
+#include "lardata/RecoBase/PFParticle.h"
+#include "lardata/RecoBase/Track.h"
+#include "lardata/RecoBase/Vertex.h"
+#include "lardata/RecoBase/Spacepoint.h"
 
 #include "TH1.h"
 #include "TH2.h"
@@ -55,6 +55,8 @@ public:
     // provide for initialization
     void reconfigure(fhicl::ParameterSet const & pset);
     void initializeHists(art::ServiceHandle<art::TFileService>&, const std::string&);
+
+    void compareTwoTracks(const recob::Track*, const recob::Track*) const;
     
     void pandoraAnalysis(const art::Event& event) const;
     
@@ -138,8 +140,8 @@ private:
     TH2D*     fViewVsHits;
     
     // Useful services, keep copies for now (we can update during begin run periods)
-    art::ServiceHandle<geo::Geometry>            fGeometry;             ///< pointer to Geometry service
-    art::ServiceHandle<util::DetectorProperties> fDetectorProperties;   ///< Detector properties service
+    const geo::GeometryCore*           fGeometry;             // pointer to Geometry service
+    const detinfo::DetectorProperties* fDetectorProperties;   ///< Detector properties service
 };
 
 } // end of namespace caldata

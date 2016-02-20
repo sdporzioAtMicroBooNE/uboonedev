@@ -18,26 +18,26 @@
 #define LArNeutrinoAna_module
 
 // LArSoft includes
-#include "Simulation/SimChannel.h"
-#include "Simulation/LArG4Parameters.h"
-#include "RecoBase/Hit.h"
-#include "RecoBase/Cluster.h"
-#include "RecoBase/Track.h"
-#include "RecoBase/PFParticle.h"
-#include "AnalysisBase/CosmicTag.h"
-#include "Utilities/DetectorProperties.h"
-#include "Utilities/LArProperties.h"
-#include "Geometry/Geometry.h"
+#include "larsim/Simulation/SimChannel.h"
+#include "larsim/Simulation/LArG4Parameters.h"
+#include "lardata/RecoBase/Hit.h"
+#include "lardata/RecoBase/Cluster.h"
+#include "lardata/RecoBase/Track.h"
+#include "lardata/RecoBase/PFParticle.h"
+#include "lardata/AnalysisBase/CosmicTag.h"
 #include "SimulationBase/MCParticle.h"
 #include "SimulationBase/MCTruth.h"
 #include "SimulationBase/MCNeutrino.h"
-#include "SimpleTypesAndConstants/geo_types.h"
-#include "MCBase/MCHitCollection.h"
+#include "larcore/SimpleTypesAndConstants/geo_types.h"
+#include "lardata/MCBase/MCHitCollection.h"
 
 //#include "cetlib/search_path.h"
 #include "cetlib/cpu_timer.h"
-#include "Utilities/TimeService.h"
-#include "Utilities/AssociationUtil.h"
+#include "lardata/DetectorInfoServices/DetectorClocksService.h"
+#include "lardata/Utilities/AssociationUtil.h"
+#include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
+#include "lardata/DetectorInfoServices/LArPropertiesService.h"
+#include "larcore/Geometry/Geometry.h"
 
 // Framework includes
 #include "art/Framework/Core/EDAnalyzer.h"
@@ -135,8 +135,8 @@ private:
     int fSubRun;
 
     // Other variables that will be shared between different methods.
-    art::ServiceHandle<geo::Geometry> fGeometry;       // pointer to Geometry service
-    double                            fElectronsToGeV; // conversion factor
+    const geo::GeometryCore* fGeometry;       // pointer to Geometry service
+    double                   fElectronsToGeV; // conversion factor
     
     // Define histograms here
     TH1D*     fMuonRange;
@@ -207,6 +207,8 @@ private:
 LArNeutrinoAna::LArNeutrinoAna(fhicl::ParameterSet const& parameterSet)
     : EDAnalyzer(parameterSet)
 {
+    fGeometry = lar::providerFrom<geo::Geometry>();
+    
     // Read in the parameters from the .fcl file.
     this->reconfigure(parameterSet);
 }
@@ -363,7 +365,7 @@ void LArNeutrinoAna::analyze(const art::Event& event)
     event.getByLabel(fHitProducerLabel, hitHandle);
 
     //we're gonna probably need the time service to convert hit times to TDCs
-    art::ServiceHandle<util::TimeService> timeService;
+    const auto* timeService = lar::providerFrom<detinfo::DetectorClocksService>();
       
     // our ultimate goal here
     HitToParticleMap hitToParticleMap;
@@ -534,7 +536,7 @@ void LArNeutrinoAna::analyze(const art::Event& event)
     
     // Always a handy thing to have hidden in your code:
 //    const double radToDegrees = 180. / 3.14159265;
-    art::ServiceHandle<util::LArProperties> larProperties;
+    auto const* larProperties = lar::providerFrom<detinfo::DetectorPropertiesService>();
     
     // One last task worth pursuing is to see if we can pick out the neutrino interaction and do some categorization of it.
 //    const simb::MCTruth* theAnswerIsOutThere(0);
@@ -863,8 +865,8 @@ double LArNeutrinoAna::length(const simb::MCParticle& part, double dx,
 {
     // Get services.
     
-    art::ServiceHandle<geo::Geometry> geom;
-    art::ServiceHandle<util::DetectorProperties> detprop;
+    const auto* detprop = lar::providerFrom<detinfo::DetectorPropertiesService>();
+    const auto* geom    = lar::providerFrom<geo::Geometry>();
     
     // Get fiducial volume boundary.
     

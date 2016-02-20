@@ -18,26 +18,27 @@
 #define PiZeroMcAna_Module
 
 // LArSoft includes
-#include "Simulation/SimChannel.h"
-#include "Simulation/LArG4Parameters.h"
-#include "RecoBase/Hit.h"
-#include "RecoBase/Cluster.h"
-#include "RecoBase/Track.h"
-#include "RecoBase/PFParticle.h"
-#include "RecoBase/PCAxis.h"
-#include "AnalysisBase/CosmicTag.h"
-#include "Geometry/Geometry.h"
+#include "larsim/Simulation/SimChannel.h"
+#include "larsim/Simulation/LArG4Parameters.h"
+#include "lardata/RecoBase/Hit.h"
+#include "lardata/RecoBase/Cluster.h"
+#include "lardata/RecoBase/Track.h"
+#include "lardata/RecoBase/PFParticle.h"
+#include "lardata/RecoBase/PCAxis.h"
+#include "lardata/AnalysisBase/CosmicTag.h"
 #include "SimulationBase/MCParticle.h"
 #include "SimulationBase/MCTruth.h"
 #include "SimulationBase/MCNeutrino.h"
-#include "SimpleTypesAndConstants/geo_types.h"
-#include "MCBase/MCHitCollection.h"
+#include "larcore/SimpleTypesAndConstants/geo_types.h"
+#include "lardata/MCBase/MCHitCollection.h"
 
 //#include "cetlib/search_path.h"
 #include "cetlib/cpu_timer.h"
-#include "Utilities/TimeService.h"
-#include "Utilities/AssociationUtil.h"
-#include "Utilities/DetectorProperties.h"
+#include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
+#include "lardata/DetectorInfoServices/LArPropertiesService.h"
+#include "lardata/DetectorInfoServices/DetectorClocksService.h"
+#include "lardata/Utilities/AssociationUtil.h"
+#include "larcore/Geometry/Geometry.h"
 
 // Framework includes
 #include "art/Framework/Core/EDAnalyzer.h"
@@ -195,10 +196,9 @@ private:
     double fEndPE[4];
 
     // Other variables that will be shared between different methods.
-    art::ServiceHandle<geo::Geometry>            fGeometry;       // pointer to Geometry service
-    art::ServiceHandle<util::DetectorProperties> fDetectorProperties;
-
-    double                                       fElectronsToGeV; // conversion factor
+    const geo::GeometryCore*            fGeometry;             // pointer to Geometry service
+    const detinfo::DetectorProperties*  fDetectorProperties;   ///< Detector properties service
+    double                              fElectronsToGeV; // conversion factor
 
 }; // class PiZeroMcAna
 
@@ -212,6 +212,9 @@ private:
 PiZeroMcAna::PiZeroMcAna(fhicl::ParameterSet const& parameterSet)
     : EDAnalyzer(parameterSet)
 {
+    fGeometry = lar::providerFrom<geo::Geometry>();
+    fDetectorProperties = lar::providerFrom<detinfo::DetectorPropertiesService>();
+    
     // Read in the parameters from the .fcl file.
     this->reconfigure(parameterSet);
 }
@@ -511,7 +514,7 @@ void PiZeroMcAna::MakeHitParticleMaps(const std::vector<sim::MCHitCollection>& m
                                       ParticleToHitMap&                        particleToHitMap)
 {
     //we're gonna probably need the time service to convert hit times to TDCs
-    art::ServiceHandle<util::TimeService> timeService;
+    const auto& timeService = lar::providerFrom<detinfo::DetectorClocksService>();
     
     // Ok, so this loop obviously takes the MC information and builds two maps
     // 1) a map from a Hit2D object to the track ID's that made it

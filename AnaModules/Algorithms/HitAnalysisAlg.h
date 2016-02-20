@@ -21,10 +21,10 @@
 
 #include "art/Framework/Services/Registry/ServiceHandle.h"
 #include "art/Framework/Services/Optional/TFileService.h"
-#include "Geometry/Geometry.h"
-#include "Utilities/DetectorProperties.h"
+#include "larcore/Geometry/Geometry.h"
+#include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
 
-#include "RecoBase/Hit.h"
+#include "lardata/RecoBase/Hit.h"
 
 #include "TH1.h"
 #include "TH2.h"
@@ -69,8 +69,8 @@ private:
     TH1D*     fHitSumADC[3];
     
     // Useful services, keep copies for now (we can update during begin run periods)
-    art::ServiceHandle<geo::Geometry>            fGeometry;             ///< pointer to Geometry service
-    art::ServiceHandle<util::DetectorProperties> fDetectorProperties;   ///< Detector properties service
+    const geo::Geometry*               fGeometry;             ///< pointer to Geometry service
+    const detinfo::DetectorProperties* fDetectorProperties;   ///< Detector properties service
 };
 
 } // end of namespace caldata

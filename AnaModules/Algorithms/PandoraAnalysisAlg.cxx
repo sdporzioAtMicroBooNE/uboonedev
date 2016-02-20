@@ -22,6 +22,9 @@ namespace pandoraanalysis
 ///
 PandoraAnalysisAlg::PandoraAnalysisAlg(fhicl::ParameterSet const & pset) 
 {
+    fGeometry = lar::providerFrom<geo::Geometry>();
+    fDetectorProperties = lar::providerFrom<detinfo::DetectorPropertiesService>();
+    
     reconfigure(pset);
 
     // Report.

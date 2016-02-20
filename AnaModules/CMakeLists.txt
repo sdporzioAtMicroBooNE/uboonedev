@@ -4,14 +4,11 @@
 art_make(BASENAME_ONLY
 	LIBRARY_NAME AnaModules
 	LIB_LIBRARIES 
-		     RecoBase
-		     AnalysisBase
-		     Geometry
-		     Geometry_service
-		     PhotonVisibilityService_service
-		     LArProperties_service
-		     OpDigiProperties_service
-		     Utilities
+		     lardata_RecoBase
+		     lardata_AnalysisBase
+             larcore_Geometry
+		     larcore_Geometry_Geometry_service
+		     lardata_Utilities
 		     ${SIMULATIONBASE}
 		     ${MF_MESSAGELOGGER}
 		     ${MF_UTILITIES}
@@ -21,24 +18,18 @@ art_make(BASENAME_ONLY
 		     ${ROOT_BASIC_LIB_LIST}
 		     ${G4_LIB_LIST}
 	MODULE_LIBRARIES  
-			    BackTracker_service
 			    UBooneDevAlgs
-			    RecoAlg
-                            Cluster3DAlgs
-			    Simulation
-			    RawData
-			    RecoObjects
-			    RecoBase
-			    MCBase
-			    Geometry
-			    Geometry_service
-			    PhotonVisibilityService_service
-		            OpDigiProperties_service
-			    AnalysisAlg
-			    AnalysisBase
-                            LArProperties_service
-			    DetectorProperties_service
-			    Utilities
+			    larreco_RecoAlg
+                larreco_RecoAlg_Cluster3DAlgs
+			    larsim_Simulation
+			    lardata_RawData
+			    lardata_RecoObjects
+			    lardata_RecoBase
+			    lardata_MCBase
+                lardata_AnalysisBase
+			    larcore_Geometry
+			    larcore_Geometry_Geometry_service
+			    lardata_Utilities
 			    ${MAGNETICFIELD_SERVICE}
 			    ${SIMULATIONBASE}
 			    ${ART_FRAMEWORK_CORE}
