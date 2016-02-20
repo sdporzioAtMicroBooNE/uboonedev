@@ -22,9 +22,11 @@ art_make(BASENAME_ONLY
 		     ${G4_LIB_LIST}
 	MODULE_LIBRARIES  
 			    BackTracker_service
+			    UBooneDevAlgs
 			    RecoAlg
                             Cluster3DAlgs
 			    Simulation
+			    RawData
 			    RecoObjects
 			    RecoBase
 			    MCBase
@@ -56,6 +58,8 @@ art_make(BASENAME_ONLY
 			    ${ROOT_BASIC_LIB_LIST}
 			    ${G4_LIB_LIST}
          )
+
+add_subdirectory(Algorithms)
 
 install_headers()
 install_source()
