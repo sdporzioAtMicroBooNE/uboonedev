@@ -1,0 +1,40 @@
+art_make( BASENAME_ONLY
+          LIBRARY_NAME UBooneDevAlgs
+          LIB_LIBRARIES 
+			RawData
+                        RecoBase
+	                Utilities
+	                ${FHICLCPP}
+			${CETLIB}
+			${ROOT_BASIC_LIB_LIST}
+	                Geometry
+	  		Geometry_service
+	                Utilities
+			DetectorProperties_service
+			Filters
+			CalibrationDBI_IOVData
+			CalibrationDBI_Providers
+			RecoBase
+			RecoBaseArt
+                        ${ART_FRAMEWORK_CORE}
+			${ART_FRAMEWORK_PRINCIPAL}
+			${ART_FRAMEWORK_SERVICES_REGISTRY}
+			${ART_FRAMEWORK_SERVICES_OPTIONAL}
+			${ART_FRAMEWORK_SERVICES_OPTIONAL_TFILESERVICE_SERVICE}
+			${ART_PERSISTENCY_COMMON}
+			${ART_PERSISTENCY_PROVENANCE}
+			${ART_UTILITIES}
+			${MF_MESSAGELOGGER}
+			${MF_UTILITIES}
+	                ${FHICLCPP}
+			${CETLIB}
+                        ${ROOT_GEOM}
+                        ${ROOT_XMLIO}
+                        ${ROOT_GDML}
+			${ROOT_FFTW}
+			${ROOT_BASIC_LIB_LIST}
+        )
+
+install_headers()
+install_fhicl()
+install_source()
