@@ -19,8 +19,11 @@ namespace hitanalysis
 ///
 HitAnalysisAlg::HitAnalysisAlg(fhicl::ParameterSet const & pset) 
 {
+    fGeometry           = lar::providerFrom<geo::Geometry>();
+    fDetectorProperties = lar::providerFrom<detinfo::DetectorPropertiesService>();
+    
     reconfigure(pset);
-
+    
     // Report.
     mf::LogInfo("HitAnalysisAlg") << "HitAnalysisAlg configured\n";
 }

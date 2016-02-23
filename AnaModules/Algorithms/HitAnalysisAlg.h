@@ -69,7 +69,7 @@ private:
     TH1D*     fHitSumADC[3];
     
     // Useful services, keep copies for now (we can update during begin run periods)
-    const geo::Geometry*               fGeometry;             ///< pointer to Geometry service
+    const geo::GeometryCore*           fGeometry;             ///< pointer to Geometry service
     const detinfo::DetectorProperties* fDetectorProperties;   ///< Detector properties service
 };
 
