@@ -268,8 +268,6 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                     fNVertices->Fill(nVertices, 1.);
                 }
                 
-                //                if (nViews < 3) continue;
-                
                 // Get tracks made with the PFParticle
                 std::vector<art::Ptr<recob::Track>> pfPartTrackVec = firstTrackAssns.at(pfParticle.key());
                 
