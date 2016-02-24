@@ -67,6 +67,7 @@ private:
     TH1D*     fHitCharge[3];
     TH1D*     fFitWidth[3];
     TH1D*     fHitSumADC[3];
+    TH2D*     fPulseHVsWidth[3];
     
     // Useful services, keep copies for now (we can update during begin run periods)
     const geo::GeometryCore*           fGeometry;             ///< pointer to Geometry service

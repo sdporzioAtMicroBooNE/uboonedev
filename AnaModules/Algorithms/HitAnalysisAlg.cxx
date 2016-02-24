@@ -77,13 +77,17 @@ void HitAnalysisAlg::initializeHists(art::ServiceHandle<art::TFileService>& tfs,
     fHitCharge[0]             = dir.make<TH1D>("HitCharge0",    "Charge",   1000,  0., 2000.);
     fHitCharge[1]             = dir.make<TH1D>("HitCharge1",    "Charge",   1000,  0., 2000.);
     fHitCharge[2]             = dir.make<TH1D>("HitCharge2",    "Charge",   1000,  0., 2000.);
-    fFitWidth[0]              = dir.make<TH1D>("FitWidth0",     "Charge",    100,  0.,   10.);
-    fFitWidth[1]              = dir.make<TH1D>("FitWidth1",     "Charge",    100,  0.,   10.);
-    fFitWidth[2]              = dir.make<TH1D>("FitWidth2",     "Charge",    100,  0.,   10.);
-    fHitSumADC[0]             = dir.make<TH1D>("SumADC0",       "Sum ADC",  1000,  0.,   50.);
+    fFitWidth[0]              = dir.make<TH1D>("FitWidth0",     "Width",     100,  0.,   10.);
+    fFitWidth[1]              = dir.make<TH1D>("FitWidth1",     "Width",     100,  0.,   10.);
+    fFitWidth[2]              = dir.make<TH1D>("FitWidth2",     "Width",     100,  0.,   10.);
+    fHitSumADC[0]             = dir.make<TH1D>("SumADC0",       "Sum ADC",  1000,  0., 2000.);
     fHitSumADC[1]             = dir.make<TH1D>("SumADC1",       "Sum ADC",  1000,  0., 2000.);
     fHitSumADC[2]             = dir.make<TH1D>("SumADC2",       "Sum ADC",  1000,  0., 2000.);
-        
+    
+    fPulseHVsWidth[0]         = dir.make<TH2D>("PHVsWidth0",    ";PH;Width", 100,  0.,  100., 100, 0., 10.);
+    fPulseHVsWidth[1]         = dir.make<TH2D>("PHVsWidth1",    ";PH;Width", 100,  0.,  100., 100, 0., 10.);
+    fPulseHVsWidth[2]         = dir.make<TH2D>("PHVsWidth2",    ";PH;Width", 100,  0.,  100., 100, 0., 10.);
+
     return;
 }
     
@@ -117,6 +121,7 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         fHitCharge[view]->Fill(charge, 1.);
         fFitWidth[view]->Fill(std::min(float(9.99),hitSigma), 1.);
         fHitSumADC[view]->Fill(sumADC, 1.);
+        fPulseHVsWidth[view]->Fill(std::min(float(99.9),hitPH),std::min(float(9.99),hitSigma), 1.);
         
         if (hitMult == 1)
         {
