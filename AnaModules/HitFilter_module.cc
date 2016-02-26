@@ -99,8 +99,8 @@ void HitFilter::reconfigure(fhicl::ParameterSet const & p)
 {
     // Implementation of optional member function here.
     fHitProducerLabel = p.get< std::string        >("HitProducerLabel", "gaushit");
-    fMinPulseHeight   = p.get< std::vector<float> >("MinPulseHeight",   std::vector<float>() = {12., 12., 12.});
-    fMinPulseSigma    = p.get< std::vector<float> >("MinPulseSigma",    std::vector<float>() = {1.4, 1.2, 1.2});
+    fMinPulseHeight   = p.get< std::vector<float> >("MinPulseHeight",   std::vector<float>() = {14., 15., 30.});
+    fMinPulseSigma    = p.get< std::vector<float> >("MinPulseSigma",    std::vector<float>() = {1.8, 2.0, 1.4});
 }
 
 void HitFilter::endJob() {
