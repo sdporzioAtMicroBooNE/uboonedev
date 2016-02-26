@@ -48,6 +48,7 @@ public:
     // provide for initialization
     void reconfigure(fhicl::ParameterSet const & pset);
     void initializeHists(art::ServiceHandle<art::TFileService>&, const std::string&);
+    void endJob(int numEvents);
     
     void fillHistograms(const HitPtrVec& hitPtrVec) const;
     
@@ -62,11 +63,13 @@ private:
     TH1D*     fPulseHeightSingle[3];
     TH1D*     fPulseHeightMulti[3];
     TH1D*     fChi2DOF[3];
+    TH1D*     fNumDegFree[3];
     TH1D*     fChi2DOFSingle[3];
     TH1D*     fHitMult[3];
     TH1D*     fHitCharge[3];
     TH1D*     fFitWidth[3];
     TH1D*     fHitSumADC[3];
+    TH2D*     fNDFVsChi2[3];
     TH2D*     fPulseHVsWidth[3];
     
     // Useful services, keep copies for now (we can update during begin run periods)

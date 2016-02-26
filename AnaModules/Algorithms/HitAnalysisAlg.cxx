@@ -68,6 +68,9 @@ void HitAnalysisAlg::initializeHists(art::ServiceHandle<art::TFileService>& tfs,
     fChi2DOF[0]               = dir.make<TH1D>("Chi2DOF0",      "Chi2DOF",   502, -1.,  250.);
     fChi2DOF[1]               = dir.make<TH1D>("Chi2DOF1",      "Chi2DOF",   502, -1.,  250.);
     fChi2DOF[2]               = dir.make<TH1D>("Chi2DOF2",      "Chi2DOF",   502, -1.,  250.);
+    fNumDegFree[0]            = dir.make<TH1D>("NumDegFree0",   "NDF",       100,  0.,  100.);
+    fNumDegFree[1]            = dir.make<TH1D>("NumDegFree1",   "NDF",       100,  0.,  100.);
+    fNumDegFree[2]            = dir.make<TH1D>("NumDegFree2",   "NDF",       100,  0.,  100.);
     fChi2DOFSingle[0]         = dir.make<TH1D>("Chi2DOFS0",     "Chi2DOF",   502, -1.,  250.);
     fChi2DOFSingle[1]         = dir.make<TH1D>("Chi2DOFS1",     "Chi2DOF",   502, -1.,  250.);
     fChi2DOFSingle[2]         = dir.make<TH1D>("Chi2DOFS2",     "Chi2DOF",   502, -1.,  250.);
@@ -84,9 +87,13 @@ void HitAnalysisAlg::initializeHists(art::ServiceHandle<art::TFileService>& tfs,
     fHitSumADC[1]             = dir.make<TH1D>("SumADC1",       "Sum ADC",  1000,  0., 2000.);
     fHitSumADC[2]             = dir.make<TH1D>("SumADC2",       "Sum ADC",  1000,  0., 2000.);
     
-    fPulseHVsWidth[0]         = dir.make<TH2D>("PHVsWidth0",    ";PH;Width", 100,  0.,  100., 100, 0., 10.);
-    fPulseHVsWidth[1]         = dir.make<TH2D>("PHVsWidth1",    ";PH;Width", 100,  0.,  100., 100, 0., 10.);
-    fPulseHVsWidth[2]         = dir.make<TH2D>("PHVsWidth2",    ";PH;Width", 100,  0.,  100., 100, 0., 10.);
+    fNDFVsChi2[0]             = dir.make<TH2D>("NDFVsChi20",    ";NDF;Chi2",  50,  0.,   50., 101, -1., 100.);
+    fNDFVsChi2[1]             = dir.make<TH2D>("NDFVsChi21",    ";NDF;Chi2",  50,  0.,   50., 101, -1., 100.);
+    fNDFVsChi2[2]             = dir.make<TH2D>("NDFVsChi22",    ";NDF;Chi2",  50,  0.,   50., 101, -1., 100.);
+    
+    fPulseHVsWidth[0]         = dir.make<TH2D>("PHVsWidth0",    ";PH;Width", 100,  0.,  100., 100,  0., 10.);
+    fPulseHVsWidth[1]         = dir.make<TH2D>("PHVsWidth1",    ";PH;Width", 100,  0.,  100., 100,  0., 10.);
+    fPulseHVsWidth[2]         = dir.make<TH2D>("PHVsWidth2",    ";PH;Width", 100,  0.,  100., 100,  0., 10.);
 
     return;
 }
@@ -100,7 +107,7 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         // Extract interesting hit parameters
         const geo::WireID& wireID   = hitPtr->WireID();
         float              chi2DOF  = std::min(hitPtr->GoodnessOfFit(),float(249.8));
-        //              int                numDOF   = hitPtr->DegreesOfFreedom();
+        int                numDOF   = hitPtr->DegreesOfFreedom();
         int                hitMult  = hitPtr->Multiplicity();
         //              int                hitIdx   = hitPtr->LocalIndex();
         float              charge   = hitPtr->Integral();
@@ -117,10 +124,12 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         fHitsByWire[view]->Fill(wire,1.);
         fPulseHeight[view]->Fill(hitPH, 1.);
         fChi2DOF[view]->Fill(chi2DOF, 1.);
+        fNumDegFree[view]->Fill(numDOF, 1.);
         fHitMult[view]->Fill(hitMult, 1.);
         fHitCharge[view]->Fill(charge, 1.);
         fFitWidth[view]->Fill(std::min(float(9.99),hitSigma), 1.);
         fHitSumADC[view]->Fill(sumADC, 1.);
+        fNDFVsChi2[view]->Fill(numDOF, chi2DOF, 1.);
         fPulseHVsWidth[view]->Fill(std::min(float(99.9),hitPH),std::min(float(9.99),hitSigma), 1.);
         
         if (hitMult == 1)
@@ -131,6 +140,17 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         else
             fPulseHeightMulti[view]->Fill(hitPH, 1.);
     }
+    
+    return;
+}
+    
+// Useful for normalizing histograms
+void HitAnalysisAlg::endJob(int numEvents)
+{
+    // Normalize wire profiles to be hits/event
+    double normFactor(1./numEvents);
+    
+    for(size_t idx = 0; idx < 3; idx++) fHitsByWire[idx]->Scale(normFactor);
     
     return;
 }

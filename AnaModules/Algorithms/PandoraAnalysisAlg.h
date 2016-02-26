@@ -55,6 +55,7 @@ public:
     // provide for initialization
     void reconfigure(fhicl::ParameterSet const & pset);
     void initializeHists(art::ServiceHandle<art::TFileService>&, const std::string&);
+    void endJob(int numEvents);
 
     void compareTwoTracks(const recob::Track*, const recob::Track*) const;
     

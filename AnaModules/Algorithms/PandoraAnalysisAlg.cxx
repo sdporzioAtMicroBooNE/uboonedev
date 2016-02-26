@@ -543,6 +543,12 @@ void PandoraAnalysisAlg::compareTwoTracks(const recob::Track* track1, const reco
     return;
 }
     
+// Useful for normalizing histograms
+void PandoraAnalysisAlg::endJob(int numEvents)
+{
+    return;
+}
+    
 // Length of reconstructed track.
 //----------------------------------------------------------------------------
 double PandoraAnalysisAlg::length(const recob::Track* track) const

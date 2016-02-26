@@ -359,6 +359,12 @@ void TrackHitAna::analyze(const art::Event& event)
     
 void TrackHitAna::endJob()
 {
+    // Make a call to normalize histograms if so desired
+    fTrackHitsAnalysisAlg.endJob(fNumEvents);
+    fPFPartHitsAnalysisAlg.endJob(fNumEvents);
+    fAllHitsAnalysisAlg.endJob(fNumEvents);
+    fPandoraAnalysis.endJob(fNumEvents);
+    
     return;
 }
     
