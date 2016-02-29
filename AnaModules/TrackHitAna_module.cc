@@ -53,6 +53,7 @@
 
 #include "Algorithms/HitAnalysisAlg.h"
 #include "Algorithms/PandoraAnalysisAlg.h"
+#include "Algorithms/CalWireAnalysisAlg.h"
 
 // ROOT includes. Note: To look up the properties of the ROOT classes,
 // use the ROOT web site; e.g.,
@@ -132,6 +133,7 @@ private:
     std::string fHitProducerLabel;
     std::string fPFParticleProducerLabel;
     std::string fTrackProducerLabel;
+    std::string fWireProducerLabel;
     
     // Pointers to the hit analyses we will do
     hitanalysis::HitAnalysisAlg fTrackHitsAnalysisAlg;
@@ -140,6 +142,9 @@ private:
     
     // Pandora analysis
     pandoraanalysis::PandoraAnalysisAlg fPandoraAnalysis;
+    
+    // Wire analysis
+    calwireanalysis::CalWireAnalysisAlg fCalWireAnalysisAlg;
     
     // The variables that will go into the n-tuple.
     int fEvent;
@@ -168,6 +173,7 @@ TrackHitAna::TrackHitAna(fhicl::ParameterSet const& parameterSet)
       fPFPartHitsAnalysisAlg(parameterSet),
       fAllHitsAnalysisAlg(parameterSet),
       fPandoraAnalysis(parameterSet),
+      fCalWireAnalysisAlg(parameterSet),
       fPedestalRetrievalAlg(*lar::providerFrom<lariov::DetPedestalService>())
 
 {
@@ -204,6 +210,8 @@ void TrackHitAna::beginJob()
     
     fPandoraAnalysis.initializeHists(tfs, "PandoraAnalysis");
     
+    fCalWireAnalysisAlg.initializeHists(tfs, "CalWireAnalysis");
+    
     // zero out the event counter
     fNumEvents = 0;
 }
@@ -226,6 +234,7 @@ void TrackHitAna::reconfigure(fhicl::ParameterSet const& p)
     fHitProducerLabel        = p.get< std::string >("HitModuleLabel",          "gauss");
     fPFParticleProducerLabel = p.get< std::string >("PFParticleProducerLabel", "cluster3d");
     fTrackProducerLabel      = p.get< std::string >("TrackProducerLabel",      "trackkalmanhit");
+    fWireProducerLabel       = p.get< std::string >("WireProducerLabel",       "caldata");
 
     return;
 }
@@ -350,9 +359,24 @@ void TrackHitAna::analyze(const art::Event& event)
         art::fill_ptr_vector(allHitVec, hitHandle);
         
         fAllHitsAnalysisAlg.fillHistograms(allHitVec);
+        
+        // Look up Wire data and associations to hits
+        art::Handle< std::vector<recob::Wire> > wireHandle;
+        event.getByLabel(fWireProducerLabel, wireHandle);
+        
+        if (wireHandle.isValid())
+        {
+            calwireanalysis::WirePtrVec wirePtrVec;
+            art::fill_ptr_vector(wirePtrVec, wireHandle);
+            
+            art::FindManyP<recob::Hit> hitWireAssns(wireHandle, event, fHitProducerLabel);
+            
+            fCalWireAnalysisAlg.fillHistograms(wirePtrVec, hitWireAssns);
+        }
     }
     
     fPandoraAnalysis.pandoraAnalysis(event);
+
 
     return;
 }
