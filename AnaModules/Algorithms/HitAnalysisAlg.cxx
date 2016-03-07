@@ -100,6 +100,8 @@ void HitAnalysisAlg::initializeHists(art::ServiceHandle<art::TFileService>& tfs,
     
 void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
 {
+    // Keep track of number of hits per view
+    size_t nHitsPerView[] = {0,0,0};
     
     // Loop the hits and make some plots
     for(const auto& hitPtr : hitPtrVec)
@@ -121,6 +123,8 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         size_t             view     = wireID.Plane;
         size_t             wire     = wireID.Wire;
         
+        nHitsPerView[view]++;
+        
         fHitsByWire[view]->Fill(wire,1.);
         fPulseHeight[view]->Fill(hitPH, 1.);
         fChi2DOF[view]->Fill(chi2DOF, 1.);
@@ -140,6 +144,8 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         else
             fPulseHeightMulti[view]->Fill(hitPH, 1.);
     }
+    
+//    std::cout << "** " << fLocalDirName << " hits, # per plane: " << nHitsPerView[0] << " / " << nHitsPerView[1] << " / " << nHitsPerView[2] << std::endl;
     
     return;
 }
