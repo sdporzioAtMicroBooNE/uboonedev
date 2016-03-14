@@ -324,8 +324,13 @@ int PFParticle::traversePFParticleHierarchy(art::Handle<std::vector<recob::PFPar
     
     // Get pointer to PFParticle
     art::Ptr<recob::PFParticle> pfParticle(pfParticleHandle,pfParticleIdx);
-    
-    std::cout << "-- Parent: " << pfParticle->Parent() << ", pdg code: " << pfParticle->PdgCode() << ", # daughters: " << pfParticle->NumDaughters() << std::endl;
+
+    if (pfParticle->Parent() == recob::PFParticle::kPFParticlePrimary)
+        std::cout << "** Top of Hierarchy, idx: " << pfParticle->Self();
+    else
+        std::cout << "-- Parent: " << pfParticle->Parent() << ", self: " << pfParticle->Self();
+
+    std::cout <<  ", pdg code: " << pfParticle->PdgCode() << ", # daughters: " << pfParticle->NumDaughters() << std::endl;
     
     // Recover tracks/vertices associated to this PFParticle
     std::vector<art::Ptr<recob::Track>>  pfPartTrackVec  = trackAssns.at(pfParticle.key());
