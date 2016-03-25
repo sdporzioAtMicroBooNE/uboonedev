@@ -286,15 +286,23 @@ void TrackHitAna::analyze(const art::Event& event)
     }
     
     // Now pass through this map and do some matching
+    HitPtrVec fitTrackHits;
+    
     for(const auto& trackHitVecMapItr : trackHitVecMap)
     {
         for(const auto& viewHitPair : trackHitVecMapItr.second)
         {
-            const HitPtrVec& trackHitVec = viewHitPair.second;
+            std::copy(viewHitPair.second.begin(),viewHitPair.second.end(),std::back_inserter(fitTrackHits));
+//            const HitPtrVec& trackHitVec = viewHitPair.second;
             
-            fTrackHitsAnalysisAlg.fillHistograms(trackHitVec);
+//            fTrackHitsAnalysisAlg.fillHistograms(trackHitVec);
         }
     }
+    
+    // Sort the container so we can remove these hits later
+    std::sort(fitTrackHits.begin(),fitTrackHits.end());
+    
+    fTrackHitsAnalysisAlg.fillHistograms(fitTrackHits);
     
     // The game plan for this module is to look at hits associated to tracks
     // To do this we need a valid track collection for those we are hoping to look at
@@ -358,7 +366,13 @@ void TrackHitAna::analyze(const art::Event& event)
         HitPtrVec allHitVec;
         art::fill_ptr_vector(allHitVec, hitHandle);
         
-        fAllHitsAnalysisAlg.fillHistograms(allHitVec);
+        std::sort(allHitVec.begin(),allHitVec.end());
+        
+        HitPtrVec nonTrackHits;
+        
+        std::set_difference(allHitVec.begin(),allHitVec.end(),fitTrackHits.begin(),fitTrackHits.end(),std::back_inserter(nonTrackHits));
+        
+        fAllHitsAnalysisAlg.fillHistograms(nonTrackHits);
         
         // Look up Wire data and associations to hits
         art::Handle< std::vector<recob::Wire> > wireHandle;
