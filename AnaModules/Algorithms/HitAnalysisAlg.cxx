@@ -134,15 +134,18 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         fFitWidth[view]->Fill(std::min(float(9.99),hitSigma), 1.);
         fHitSumADC[view]->Fill(sumADC, 1.);
         fNDFVsChi2[view]->Fill(numDOF, chi2DOF, 1.);
-        fPulseHVsWidth[view]->Fill(std::min(float(99.9),hitPH),std::min(float(9.99),hitSigma), 1.);
+//        fPulseHVsWidth[view]->Fill(std::min(float(99.9),hitPH),std::min(float(9.99),hitSigma), 1.);
         
         if (hitMult == 1)
         {
             fPulseHeightSingle[view]->Fill(hitPH, 1.);
             fChi2DOFSingle[view]->Fill(chi2DOF, 1.);
+            fPulseHVsWidth[view]->Fill(std::min(float(99.9),hitPH),std::min(float(9.99),hitSigma), 1.);
         }
         else
             fPulseHeightMulti[view]->Fill(hitPH, 1.);
+        
+//        if (hitPH < 15. && hitSigma > 9.) std::cout << "==> Hit view: " << view << ", wire: " << wire << ", time: " << hitPtr->PeakTime() << " has PW/PH: " << hitSigma << "/" << hitPH << ", Mult: " << hitMult << ", chi: " << chi2DOF << std::endl;
     }
     
 //    std::cout << "** " << fLocalDirName << " hits, # per plane: " << nHitsPerView[0] << " / " << nHitsPerView[1] << " / " << nHitsPerView[2] << std::endl;
