@@ -83,62 +83,13 @@ private:
     std::string fPFParticleProducerLabel;
     std::string fTrackProducerLabel;
     
-    // Pointers to the histograms we'll create.
-    // Track histograms
-    TH1D*     fNPrimPFParticles;
-    TH1D*     fNPrimWDaughters;
-    TH1D*     fNpdg13PFParticles;
-    TH1D*     fNpdg11PFParticles;
-    TH1D*     fNDaughters;
-    TH1D*     fNTracks;
-    TH1D*     fNVertices;
-    TH1D*     fNHitsPFparticles;
-    TH1D*     fNHitsWDaughters;
-    TH1D*     fNHitsNDaughters;
-    
-    TH1D*     fNumPFPartTracks;
-    TH1D*     fNumPFPartTracksL;
-    TH1D*     fNumFitTracks;
-    TH1D*     fNumTrksPFPart;
-    TH1D*     fNumTrksPFPartL;
-    TH1D*     fNumFitTrksPFPart;
-    TH1D*     fNumFitTrksPFPartL;
-    TH1D*     fPFPartTrackLen;
-    TH1D*     fPFPartTrackLenL;
-    TH1D*     fPFPartEndLenL;
-    TH1D*     fFitTrackLen;
-    TH1D*     fFitTrackProjLen;
-    TH1D*     fFitEndLen;
-    TH1D*     fTrackDeltaLen;
-    TH1D*     fTrackDeltaProjLen;
-    TH2D*     fFitVsPFPartLen;
-    TH2D*     fFitELVsTL;
-    TProfile* fFitVsPFPartEff;
-    TProfile* fFitVsPFNHitsEff;
-    
-    TH1D*     fDeltaStartPos;
-    TH1D*     fDeltaEndPos;
-    TH1D*     fTrackDeltaStart;
-    TH1D*     fCosTracks;
-    TH2D*     fDStartVsDEnd;
-    
-    TH1D*     fDeltaWiresTrk[3];
-    TH1D*     fNumHitsTrk[3];
-    TH1D*     fHitWireRatioTrk[3];
-    TProfile* fRatioVsDWires[3];
-    TH1D*     fTrajDispDiff;
-    TH1D*     fTrajDispAng;
-    TH1D*     fTrajAng;
-    TH1D*     fTrajDispAngRev;
-    TH1D*     fTrajDocaAll;
-    TH1D*     fTrajDoca[3];
-    TH1D*     fTrajStartDiff;
-    TH1D*     fTrajEndDiff;
-    
-    TH1D*     fNumPFPartHits;
-    TH1D*     fNumPFPartViews;
-    TH1D*     fNumPFPartViewsL;
-    TH2D*     fViewVsHits;
+    // Keep track of histograms
+    std::vector<TH1D*>                  fTH1DVec;
+    std::vector<std::vector<TH1D*>>     fTH1DVecVec;   // hists by view (for example
+    std::vector<TH2D*>                  fTH2DVec;
+    std::vector<std::vector<TH2D*>>     fTH2DVecVec;
+    std::vector<TProfile*>              fTProfileVec;
+    std::vector<std::vector<TProfile*>> fTProfileVecVec;
     
     // Useful services, keep copies for now (we can update during begin run periods)
     const geo::GeometryCore*           fGeometry;             // pointer to Geometry service

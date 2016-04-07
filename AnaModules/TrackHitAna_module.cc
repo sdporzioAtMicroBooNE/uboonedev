@@ -341,6 +341,8 @@ void TrackHitAna::analyze(const art::Event& event)
     }
     
     // Now pass through this map and do some matching
+    HitPtrVec pfTrackHits;
+    
     for(const auto& trackHitVecMapItr : pfTrackHitVecMap)
     {
         int trackIdx = trackHitVecMapItr.first;
@@ -353,9 +355,14 @@ void TrackHitAna::analyze(const art::Event& event)
         
             if (length(track.get()) < 5.) continue;
             
+            std::copy(trackHitVec.begin(),trackHitVec.end(),std::back_inserter(pfTrackHits));
+            
             fPFPartHitsAnalysisAlg.fillHistograms(trackHitVec);
         }
     }
+    
+    // Sort the container so we can remove these hits later
+    std::sort(pfTrackHits.begin(),pfTrackHits.end());
     
     // Make a pass through all hits to make contrasting plots
     art::Handle< std::vector<recob::Hit> > hitHandle;
@@ -371,6 +378,7 @@ void TrackHitAna::analyze(const art::Event& event)
         HitPtrVec nonTrackHits;
         
         std::set_difference(allHitVec.begin(),allHitVec.end(),fitTrackHits.begin(),fitTrackHits.end(),std::back_inserter(nonTrackHits));
+//        std::set_difference(allHitVec.begin(),allHitVec.end(),pfTrackHits.begin(),pfTrackHits.end(),std::back_inserter(nonTrackHits));
         
         fAllHitsAnalysisAlg.fillHistograms(nonTrackHits);
         

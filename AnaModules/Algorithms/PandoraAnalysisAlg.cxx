@@ -13,6 +13,74 @@
 
 namespace pandoraanalysis
 {
+    
+enum class TH1DLabels : size_t
+{
+    NPrimPFParticles,
+    NPrimWDaughters,
+    Npdg13PFParticles,
+    Npdg11PFParticles,
+    NDaughters,
+    NTracks,
+    NVertices,
+    NHitsPFparticles,
+    NHitsWDaughters,
+    NHitsNDaughters,
+    NumPFPartTracks,
+    NumPFPartTracksL,
+    NumFitTracks,
+    NumTrksPFPart,
+    NumTrksPFPartL,
+    NumFitTrksPFPart,
+    NumFitTrksPFPartL,
+    PFPartTrackLen,
+    PFPartTrackLenL,
+    PFPartEndLenL,
+    FitTrackLen,
+    FitTrackProjLen,
+    FitEndLen,
+    TrackDeltaLen,
+    TrackDeltaProjLen,
+    DeltaStartPos,
+    DeltaEndPos,
+    TrackDeltaStart,
+    CosTracks,
+    DeltaWiresTrk,
+    NumHitsTrk,
+    HitWireRatioTrk,
+    TrajDispDiff,
+    TrajDispAng,
+    TrajAng,
+    TrajDocaAll,
+    TrajDoca,
+    TrajStartDiff,
+    TrajEndDiff,
+    NumPFPartHits,
+    NumPFPartViews,
+    NumPFPartViewsL,
+    AngleToWire,
+    AngleToAxis,
+    Count
+};
+    
+enum class TH2DLabels : size_t
+{
+    FitVsPFPartLen,
+    FitELVsTL,
+    DStartVsDEnd,
+    ViewVsHits,
+    HitPHVsAngle,
+    Count
+};
+
+enum class TProfileLabels : size_t
+{
+    FitVsPFPartEff,
+    FitVsPFNHitsEff,
+    RatioVsDWires,
+    Count
+};
+    
 //----------------------------------------------------------------------------
 /// Constructor.
 ///
@@ -58,72 +126,98 @@ void PandoraAnalysisAlg::initializeHists(art::ServiceHandle<art::TFileService>& 
 {
     // Make a directory for these histograms
     art::TFileDirectory dir = tfs->mkdir(dirName.c_str());
+    
+    fTH1DVec.resize(size_t(TH1DLabels::Count),0);
+    fTH1DVecVec.resize(size_t(TH1DLabels::Count),std::vector<TH1D*>(0));
+    fTH2DVec.resize(size_t(TH2DLabels::Count),0);
+    fTH2DVecVec.resize(size_t(TH2DLabels::Count),std::vector<TH2D*>(0));
+    fTProfileVec.resize(size_t(TProfileLabels::Count),0);
+    fTProfileVecVec.resize(size_t(TProfileLabels::Count),std::vector<TProfile*>(0));
 
-    fNPrimPFParticles         = dir.make<TH1D>("NPrimPFParticles", ";# particles",      100,    0.,  100.);
-    fNPrimWDaughters          = dir.make<TH1D>("PrimWDaughters",   ";# particles",      100,    0.,  100.);
-    fNpdg13PFParticles        = dir.make<TH1D>("Npdg13PFParts",    ";# particles",      100,    0.,  100.);
-    fNpdg11PFParticles        = dir.make<TH1D>("Npdg11PFParts",    ";# particles",      100,    0.,  100.);
-    fNDaughters               = dir.make<TH1D>("NpDaughters",      ";# daughters",       20,    0.,   20.);
-    fNTracks                  = dir.make<TH1D>("NTracks",          ";# tracks",          20,    0.,   20.);
-    fNVertices                = dir.make<TH1D>("NVertices",        ";# vertices",        20,    0.,   20.);
-    fNHitsPFparticles         = dir.make<TH1D>("NHitsPFParticles", ";# hits",           200,    0., 2000.);
-    fNHitsWDaughters          = dir.make<TH1D>("NHitsWDaughters",  ";# hits",           200,    0., 2000.);
-    fNHitsNDaughters          = dir.make<TH1D>("NHitsNDaughters",  ";# hits",           200,    0., 2000.);
+    fTH1DVec[size_t(TH1DLabels::NPrimPFParticles)]            = dir.make<TH1D>("NPrimPFParticles", ";# particles",      100,    0.,  100.);
+    fTH1DVec[size_t(TH1DLabels::NPrimWDaughters)]             = dir.make<TH1D>("PrimWDaughters",   ";# particles",      100,    0.,  100.);
+    fTH1DVec[size_t(TH1DLabels::Npdg13PFParticles)]           = dir.make<TH1D>("Npdg13PFParts",    ";# particles",      100,    0.,  100.);
+    fTH1DVec[size_t(TH1DLabels::Npdg11PFParticles)]           = dir.make<TH1D>("Npdg11PFParts",    ";# particles",      100,    0.,  100.);
+    fTH1DVec[size_t(TH1DLabels::NDaughters)]                  = dir.make<TH1D>("NpDaughters",      ";# daughters",       20,    0.,   20.);
+    fTH1DVec[size_t(TH1DLabels::NTracks)]                     = dir.make<TH1D>("NTracks",          ";# tracks",          20,    0.,   20.);
+    fTH1DVec[size_t(TH1DLabels::NVertices)]                   = dir.make<TH1D>("NVertices",        ";# vertices",        20,    0.,   20.);
+    fTH1DVec[size_t(TH1DLabels::NHitsPFparticles)]            = dir.make<TH1D>("NHitsPFParticles", ";# hits",           200,    0., 2000.);
+    fTH1DVec[size_t(TH1DLabels::NHitsWDaughters)]             = dir.make<TH1D>("NHitsWDaughters",  ";# hits",           200,    0., 2000.);
+    fTH1DVec[size_t(TH1DLabels::NHitsNDaughters)]             = dir.make<TH1D>("NHitsNDaughters",  ";# hits",           200,    0., 2000.);
     
-    fNumPFPartTracks          = dir.make<TH1D>("NPFPartTracks",    ";# Tracks",         100,    0.,  100.);
-    fNumPFPartTracksL         = dir.make<TH1D>("NPFPartTracksL",   ";# Tracks",         100,    0.,  100.);
-    fNumFitTracks             = dir.make<TH1D>("NFitTracks",       ";# Tracks",         100,    0.,  100.);
-    fNumTrksPFPart            = dir.make<TH1D>("NTrksPFPart",      " # Tracks",          10,    0.,   10.);
-    fNumTrksPFPartL           = dir.make<TH1D>("NTrksPFPartL",     " # Tracks",          10,    0.,   10.);
-    fNumFitTrksPFPart         = dir.make<TH1D>("NFitTrksPFPart",   " # Tracks",          10,    0.,   10.);
-    fNumFitTrksPFPartL        = dir.make<TH1D>("NFitTrksPFPartL",  " # Tracks",          10,    0.,   10.);
-    fPFPartTrackLen           = dir.make<TH1D>("PFPartTrackLen",   ";track len",        250,    0.,  500.);
-    fPFPartTrackLenL          = dir.make<TH1D>("PFPartTrackLenL",  ";track len",        250,    0.,  500.);
-    fPFPartEndLenL            = dir.make<TH1D>("PFPartEndLenL",    ";End Point len",    250,    0.,  500.);
-    fFitTrackLen              = dir.make<TH1D>("FitTrackLen",      ";track len",        250,    0.,  500.);
-    fFitTrackProjLen          = dir.make<TH1D>("FitTrackProjLen",  ";track len",        250,    0.,  500.);
-    fFitEndLen                = dir.make<TH1D>("FitEndLen",        ";End Point len",    250,    0.,  500.);
-    fTrackDeltaLen            = dir.make<TH1D>("TrackDeltaLen",    ";Delta Len",        500, -250.,  250.);
-    fTrackDeltaProjLen        = dir.make<TH1D>("TrackDeltaProjLen",";Delta Len",        500, -250.,  250.);
-    fFitVsPFPartLen           = dir.make<TH2D>("FitVsPFPartLen",   ";length;length",    100,    0.,  500., 100, 0., 500.);
-    fFitELVsTL                = dir.make<TH2D>("FitELVsTL",        ";length;length",    100,    0.,  500., 100, 0., 500.);
-    fFitVsPFPartEff           = dir.make<TProfile>("FitVsPFPart",  ";length(cm)",       100.,   0.,  500.,      0., 1.1);
-    fFitVsPFNHitsEff          = dir.make<TProfile>("FitVsPFNHits", ";# hits",           100.,   0., 3000.,      0., 1.1);
+    fTH1DVec[size_t(TH1DLabels::NumPFPartTracks)]             = dir.make<TH1D>("NPFPartTracks",    ";# Tracks",         100,    0.,  100.);
+    fTH1DVec[size_t(TH1DLabels::NumPFPartTracksL)]            = dir.make<TH1D>("NPFPartTracksL",   ";# Tracks",         100,    0.,  100.);
+    fTH1DVec[size_t(TH1DLabels::NumFitTracks)]                = dir.make<TH1D>("NFitTracks",       ";# Tracks",         100,    0.,  100.);
+    fTH1DVec[size_t(TH1DLabels::NumTrksPFPart)]               = dir.make<TH1D>("NTrksPFPart",      " # Tracks",          10,    0.,   10.);
+    fTH1DVec[size_t(TH1DLabels::NumTrksPFPartL)]              = dir.make<TH1D>("NTrksPFPartL",     " # Tracks",          10,    0.,   10.);
+    fTH1DVec[size_t(TH1DLabels::NumFitTrksPFPart)]            = dir.make<TH1D>("NFitTrksPFPart",   " # Tracks",          10,    0.,   10.);
+    fTH1DVec[size_t(TH1DLabels::NumFitTrksPFPartL)]           = dir.make<TH1D>("NFitTrksPFPartL",  " # Tracks",          10,    0.,   10.);
+    fTH1DVec[size_t(TH1DLabels::PFPartTrackLen)]              = dir.make<TH1D>("PFPartTrackLen",   ";track len",        250,    0.,  500.);
+    fTH1DVec[size_t(TH1DLabels::PFPartTrackLenL)]             = dir.make<TH1D>("PFPartTrackLenL",  ";track len",        250,    0.,  500.);
+    fTH1DVec[size_t(TH1DLabels::PFPartEndLenL)]               = dir.make<TH1D>("PFPartEndLenL",    ";End Point len",    250,    0.,  500.);
+    fTH1DVec[size_t(TH1DLabels::FitTrackLen)]                 = dir.make<TH1D>("FitTrackLen",      ";track len",        250,    0.,  500.);
+    fTH1DVec[size_t(TH1DLabels::FitTrackProjLen)]             = dir.make<TH1D>("FitTrackProjLen",  ";track len",        250,    0.,  500.);
+    fTH1DVec[size_t(TH1DLabels::FitEndLen)]                   = dir.make<TH1D>("FitEndLen",        ";End Point len",    250,    0.,  500.);
+    fTH1DVec[size_t(TH1DLabels::TrackDeltaLen)]               = dir.make<TH1D>("TrackDeltaLen",    ";Delta Len",        500, -250.,  250.);
+    fTH1DVec[size_t(TH1DLabels::TrackDeltaProjLen)]           = dir.make<TH1D>("TrackDeltaProjLen",";Delta Len",        500, -250.,  250.);
     
-    fDeltaStartPos            = dir.make<TH1D>("DeltaStartPos",    ";delta(cm)",        100,    0.,   50.);
-    fDeltaEndPos              = dir.make<TH1D>("DeltaEndPos",      ";delta(cm)",        100,    0.,   50.);
-    fTrackDeltaStart          = dir.make<TH1D>("TrackDeltaStart",  ";delta(cm)",        100,    0.,   50.);
-    fCosTracks                = dir.make<TH1D>("CosTracks",        ";cos(theta)",       101,    0.,    1.01);
+    fTH2DVec[size_t(TH2DLabels::FitVsPFPartLen)]              = dir.make<TH2D>("FitVsPFPartLen",   ";length;length",    100,    0.,  500., 100, 0., 500.);
+    fTH2DVec[size_t(TH2DLabels::FitELVsTL)]                   = dir.make<TH2D>("FitELVsTL",        ";length;length",    100,    0.,  500., 100, 0., 500.);
+    fTProfileVec[size_t(TProfileLabels::FitVsPFPartEff)]      = dir.make<TProfile>("FitVsPFPart",  ";length(cm)",       100.,   0.,  500.,      0., 1.1);
+    fTProfileVec[size_t(TProfileLabels::FitVsPFNHitsEff)]     = dir.make<TProfile>("FitVsPFNHits", ";# hits",           100.,   0., 3000.,      0., 1.1);
     
-    fDStartVsDEnd             = dir.make<TH2D>("DStartVsDEnd",     ";delta;delta",       50,    0.,   50., 50, 0., 50.);
+    fTH1DVec[size_t(TH1DLabels::DeltaStartPos)]               = dir.make<TH1D>("DeltaStartPos",    ";delta(cm)",        100,    0.,   50.);
+    fTH1DVec[size_t(TH1DLabels::DeltaEndPos)]                 = dir.make<TH1D>("DeltaEndPos",      ";delta(cm)",        100,    0.,   50.);
+    fTH1DVec[size_t(TH1DLabels::TrackDeltaStart)]             = dir.make<TH1D>("TrackDeltaStart",  ";delta(cm)",        100,    0.,   50.);
+    fTH1DVec[size_t(TH1DLabels::CosTracks)]                   = dir.make<TH1D>("CosTracks",        ";cos(theta)",       101,    0.,    1.01);
     
-    fDeltaWiresTrk[0]         = dir.make<TH1D>("DltaWiresTrk0",    ";deltaWires",       250,    0., 1000.);
-    fDeltaWiresTrk[1]         = dir.make<TH1D>("DltaWiresTrk1",    ";deltaWires",       250,    0., 1000.);
-    fDeltaWiresTrk[2]         = dir.make<TH1D>("DltaWiresTrk2",    ";deltaWires",       250,    0., 1000.);
-    fNumHitsTrk[0]            = dir.make<TH1D>("NumHitsTrk0",      ";# hits",           250,    0., 1000.);
-    fNumHitsTrk[1]            = dir.make<TH1D>("NumHitsTrk1",      ";# hits",           250,    0., 1000.);
-    fNumHitsTrk[2]            = dir.make<TH1D>("NumHitsTrk2",      ";# hits",           250,    0., 1000.);
-    fHitWireRatioTrk[0]       = dir.make<TH1D>("HitWireRat0",      ";Ratio",            100,    0.,    2.);
-    fHitWireRatioTrk[1]       = dir.make<TH1D>("HitWireRat1",      ";Ratio",            100,    0.,    2.);
-    fHitWireRatioTrk[2]       = dir.make<TH1D>("HitWireRat2",      ";Ratio",            100,    0.,    2.);
-    fRatioVsDWires[0]         = dir.make<TProfile>("RatVsDWire0",  ";DeltaWires;Ratio", 200,    0.,  200., 0., 2.);
-    fRatioVsDWires[1]         = dir.make<TProfile>("RatVsDWire1",  ";DeltaWires;Ratio", 200,    0.,  200., 0., 2.);
-    fRatioVsDWires[2]         = dir.make<TProfile>("RatVsDWire2",  ";DeltaWires;Ratio", 200,    0.,  200., 0., 2.);
+    fTH2DVec[size_t(TH2DLabels::DStartVsDEnd)]                = dir.make<TH2D>("DStartVsDEnd",     ";delta;delta",       50,    0.,   50., 50, 0., 50.);
     
-    fTrajDispDiff             = dir.make<TH1D>("TrajPointDisp",    ";disp",             200,   -5.,    5.);
-    fTrajDispAng              = dir.make<TH1D>("TrajPointAng",     ";cos(ang)",         100,   -1.,    1.);
-    fTrajAng                  = dir.make<TH1D>("TrajAng",          ";cos(ang)",         100,   -1.,    1.);
-    fTrajDocaAll              = dir.make<TH1D>("TrajDocaAll",      ";doca",             100,    0.,   10.);
-    fTrajDoca[0]              = dir.make<TH1D>("TrajDoca_0",       ";doca",             100,    0.,   10.);
-    fTrajDoca[1]              = dir.make<TH1D>("TrajDoca_1",       ";doca",             100,    0.,   10.);
-    fTrajDoca[2]              = dir.make<TH1D>("TrajDoca_2",       ";doca",             100,    0.,   10.);
-    fTrajStartDiff            = dir.make<TH1D>("TrajDeltaStart",   ";delta(cm)",        100,    0.,   50.);
-    fTrajEndDiff              = dir.make<TH1D>("TrajDeltaEnd",     ";delta(cm)",        100,    0.,   50.);
+    fTH1DVecVec[size_t(TH1DLabels::DeltaWiresTrk)].resize(3,0);
+    fTH1DVecVec[size_t(TH1DLabels::DeltaWiresTrk)][0]         = dir.make<TH1D>("DltaWiresTrk0",    ";deltaWires",       250,    0., 1000.);
+    fTH1DVecVec[size_t(TH1DLabels::DeltaWiresTrk)][1]         = dir.make<TH1D>("DltaWiresTrk1",    ";deltaWires",       250,    0., 1000.);
+    fTH1DVecVec[size_t(TH1DLabels::DeltaWiresTrk)][2]         = dir.make<TH1D>("DltaWiresTrk2",    ";deltaWires",       250,    0., 1000.);
     
-    fNumPFPartHits            = dir.make<TH1D>("NPFPartHits",      ";# hits",           300,    0., 3000.);
-    fNumPFPartViews           = dir.make<TH1D>("NPFPartViews",     ";# views",            5,    0.,    5.);
-    fNumPFPartViewsL          = dir.make<TH1D>("NPFPartViewsL",    ";# views",            5,    0.,    5.);
-    fViewVsHits               = dir.make<TH2D>("ViewVsHits",       ";# hits;# views",   100,    0., 3000., 5, 0., 5.);
+    fTH1DVecVec[size_t(TH1DLabels::NumHitsTrk)].resize(3,0);
+    fTH1DVecVec[size_t(TH1DLabels::NumHitsTrk)][0]            = dir.make<TH1D>("NumHitsTrk0",      ";# hits",           250,    0., 1000.);
+    fTH1DVecVec[size_t(TH1DLabels::NumHitsTrk)][1]            = dir.make<TH1D>("NumHitsTrk1",      ";# hits",           250,    0., 1000.);
+    fTH1DVecVec[size_t(TH1DLabels::NumHitsTrk)][2]            = dir.make<TH1D>("NumHitsTrk2",      ";# hits",           250,    0., 1000.);
+    
+    fTH1DVecVec[size_t(TH1DLabels::HitWireRatioTrk)].resize(3,0);
+    fTH1DVecVec[size_t(TH1DLabels::HitWireRatioTrk)][0]       = dir.make<TH1D>("HitWireRat0",      ";Ratio",            100,    0.,    2.);
+    fTH1DVecVec[size_t(TH1DLabels::HitWireRatioTrk)][1]       = dir.make<TH1D>("HitWireRat1",      ";Ratio",            100,    0.,    2.);
+    fTH1DVecVec[size_t(TH1DLabels::HitWireRatioTrk)][2]       = dir.make<TH1D>("HitWireRat2",      ";Ratio",            100,    0.,    2.);
+    
+    fTProfileVecVec[size_t(TProfileLabels::RatioVsDWires)].resize(3,0);
+    fTProfileVecVec[size_t(TProfileLabels::RatioVsDWires)][0] = dir.make<TProfile>("RatVsDWire0",  ";DeltaWires;Ratio", 200,    0.,  200., 0., 2.);
+    fTProfileVecVec[size_t(TProfileLabels::RatioVsDWires)][1] = dir.make<TProfile>("RatVsDWire1",  ";DeltaWires;Ratio", 200,    0.,  200., 0., 2.);
+    fTProfileVecVec[size_t(TProfileLabels::RatioVsDWires)][2] = dir.make<TProfile>("RatVsDWire2",  ";DeltaWires;Ratio", 200,    0.,  200., 0., 2.);
+    
+    fTH1DVec[size_t(TH1DLabels::TrajDispDiff)]                = dir.make<TH1D>("TrajPointDisp",    ";disp",             200,   -5.,    5.);
+    fTH1DVec[size_t(TH1DLabels::TrajDispAng)]                 = dir.make<TH1D>("TrajPointAng",     ";cos(ang)",         100,   -1.,    1.);
+    fTH1DVec[size_t(TH1DLabels::TrajAng)]                     = dir.make<TH1D>("TrajAng",          ";cos(ang)",         100,   -1.,    1.);
+    fTH1DVec[size_t(TH1DLabels::TrajDocaAll)]                 = dir.make<TH1D>("TrajDocaAll",      ";doca",             100,    0.,   10.);
+    
+    fTH1DVecVec[size_t(TH1DLabels::TrajDoca)].resize(3,0);
+    fTH1DVecVec[size_t(TH1DLabels::TrajDoca)][0]              = dir.make<TH1D>("TrajDoca_0",       ";doca",             100,    0.,   10.);
+    fTH1DVecVec[size_t(TH1DLabels::TrajDoca)][1]              = dir.make<TH1D>("TrajDoca_1",       ";doca",             100,    0.,   10.);
+    fTH1DVecVec[size_t(TH1DLabels::TrajDoca)][2]              = dir.make<TH1D>("TrajDoca_2",       ";doca",             100,    0.,   10.);
+    
+    fTH1DVec[size_t(TH1DLabels::TrajStartDiff)]               = dir.make<TH1D>("TrajDeltaStart",   ";delta(cm)",        100,    0.,   50.);
+    fTH1DVec[size_t(TH1DLabels::TrajEndDiff)]                 = dir.make<TH1D>("TrajDeltaEnd",     ";delta(cm)",        100,    0.,   50.);
+    
+    fTH1DVec[size_t(TH1DLabels::NumPFPartHits)]               = dir.make<TH1D>("NPFPartHits",      ";# hits",           300,    0., 3000.);
+    fTH1DVec[size_t(TH1DLabels::NumPFPartViews)]              = dir.make<TH1D>("NPFPartViews",     ";# views",            5,    0.,    5.);
+    fTH1DVec[size_t(TH1DLabels::NumPFPartViewsL)]             = dir.make<TH1D>("NPFPartViewsL",    ";# views",            5,    0.,    5.);
+    fTH2DVec[size_t(TH2DLabels::ViewVsHits)]                  = dir.make<TH2D>("ViewVsHits",       ";# hits;# views",   100,    0., 3000., 5, 0., 5.);
+
+    fTH1DVec[size_t(TH1DLabels::AngleToWire)]                 = dir.make<TH1D>("AngleToWire",     ";angle(deg)",        180,    0.,  180.);
+    fTH1DVec[size_t(TH1DLabels::AngleToAxis)]                 = dir.make<TH1D>("AngleToX",        ";angle(deg)",        180,    0.,  180.);
+    
+    fTH2DVecVec[size_t(TH2DLabels::HitPHVsAngle)].resize(3,0);
+    fTH2DVecVec[size_t(TH2DLabels::HitPHVsAngle)][0]          = dir.make<TH2D>("HitPHVsAngle0",   ";angle(deg);PH",      90,    0.,  180., 150, 0.,  150.);
+    fTH2DVecVec[size_t(TH2DLabels::HitPHVsAngle)][1]          = dir.make<TH2D>("HitPHVsAngle1",   ";angle(deg);PH",      90,    0.,  180., 150, 0.,  150.);
+    fTH2DVecVec[size_t(TH2DLabels::HitPHVsAngle)][2]          = dir.make<TH2D>("HitPHVsAngle2",   ";angle(deg);PH",      90,    0.,  180., 150, 0.,  150.);
     
     return;
 }
@@ -192,6 +286,12 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
         // Recover the collection of associations between tracks and hits
         art::FindManyP<recob::Hit> trackHitAssns(trackHandle, event, fTrackProducerLabel);
         
+        // Recover the collection of associations between tracks and space points
+        art::FindManyP<recob::SpacePoint> spacePointAssns(trackHandle, event, fTrackProducerLabel);
+        
+        // Recover the collection of associations between space points and hits
+        art::FindManyP<recob::Hit> hitSpacePointAssns(trackHandle, event, fTrackProducerLabel);
+        
         // Also grab a track handle from the PFParticle producer
         art::Handle<std::vector<recob::Track>> pfTrackHandle;
         event.getByLabel(fPFParticleProducerLabel, pfTrackHandle);
@@ -252,20 +352,20 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                     if (pfParticle->PdgCode() == 13)
                     {
                         nPdg13PFParticles++;
-                        fNHitsPFparticles->Fill(nHitsTotal, 1.);
+                        fTH1DVec[size_t(TH1DLabels::NHitsPFparticles)]->Fill(nHitsTotal, 1.);
                     }
                     else nPdg11PFParticles++;
                     
                     if (daughterCount > 0)
                     {
                         nPrimWDaughters++;
-                        fNHitsWDaughters->Fill(nHitsTotal, 1.);
+                        fTH1DVec[size_t(TH1DLabels::NHitsWDaughters)]->Fill(nHitsTotal, 1.);
                     }
-                    else fNHitsNDaughters->Fill(nHitsTotal, 1.);
+                    else fTH1DVec[size_t(TH1DLabels::NHitsNDaughters)]->Fill(nHitsTotal, 1.);
                     
-                    fNDaughters->Fill(daughterCount, 1.);
-                    fNTracks->Fill(nTracks, 1.);
-                    fNVertices->Fill(nVertices, 1.);
+                    fTH1DVec[size_t(TH1DLabels::NDaughters)]->Fill(daughterCount, 1.);
+                    fTH1DVec[size_t(TH1DLabels::NTracks)]->Fill(nTracks, 1.);
+                    fTH1DVec[size_t(TH1DLabels::NVertices)]->Fill(nVertices, 1.);
                 }
                 
                 // Get tracks made with the PFParticle
@@ -295,14 +395,14 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                         double pfPartLen    = projectedLength(track.get()); //length(track.get());
                         double pfPartEndLen = (pfPartEnd - pfPartStart).Mag();
                         
-                        fPFPartTrackLen->Fill(std::min(499.5,pfPartLen),1.);
-                        fPFPartEndLenL->Fill(std::min(499.5,pfPartEndLen),1.);
+                        fTH1DVec[size_t(TH1DLabels::PFPartTrackLen)]->Fill(std::min(499.5,pfPartLen),1.);
+                        fTH1DVec[size_t(TH1DLabels::PFPartEndLenL)]->Fill(std::min(499.5,pfPartEndLen),1.);
                         nTrksPFPart++;
                         
                         if (pfPartLen > 5.)
                         {
                             nPandoraTracksL++;
-                            fPFPartTrackLenL->Fill(std::min(499.5,pfPartLen));
+                            fTH1DVec[size_t(TH1DLabels::PFPartTrackLenL)]->Fill(std::min(499.5,pfPartLen));
                             nTrksPFPartL++;
                         }
                         
@@ -349,9 +449,9 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                             deltaProjLen = std::max(-249.5,std::min(249.5,deltaProjLen));
                             trkMatch     = 1.;
                             
-                            fTrackDeltaLen->Fill(deltaLen, 1.);
-                            fTrackDeltaProjLen->Fill(deltaProjLen, 1.);
-                            fFitVsPFPartLen->Fill(std::min(499.5,pfPartLen), std::min(499.5,matchLen), 1.);
+                            fTH1DVec[size_t(TH1DLabels::TrackDeltaLen)]->Fill(deltaLen, 1.);
+                            fTH1DVec[size_t(TH1DLabels::TrackDeltaProjLen)]->Fill(deltaProjLen, 1.);
+                            fTH2DVec[size_t(TH2DLabels::FitVsPFPartLen)]->Fill(std::min(499.5,pfPartLen), std::min(499.5,matchLen), 1.);
                             
                             TVector3 forwardDiff = pfPartStart - fitTrkStart;
                             TVector3 reverseDiff = pfPartStart - fitTrkEnd;
@@ -379,14 +479,14 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                             double cosTrkAng = std::max(0.01,pfPartStartDir.Dot(fitTrkStartDir));
                             //                            double cosTrkEnd = pfPartEndDir.Dot(fitTrkEndDir);
                             
-                            fDeltaStartPos->Fill(startDist, 1.);
-                            fDeltaEndPos->Fill(endDist, 1.);
-                            fCosTracks->Fill(cosTrkAng, 1.);
+                            fTH1DVec[size_t(TH1DLabels::DeltaStartPos)]->Fill(startDist, 1.);
+                            fTH1DVec[size_t(TH1DLabels::DeltaEndPos)]->Fill(endDist, 1.);
+                            fTH1DVec[size_t(TH1DLabels::CosTracks)]->Fill(cosTrkAng, 1.);
                             
-                            if (flipped) fTrackDeltaStart->Fill(endDist, 1.);
-                            else         fTrackDeltaStart->Fill(startDist, 1.);
+                            if (flipped) fTH1DVec[size_t(TH1DLabels::TrackDeltaStart)]->Fill(endDist, 1.);
+                            else         fTH1DVec[size_t(TH1DLabels::TrackDeltaStart)]->Fill(startDist, 1.);
                             
-                            fDStartVsDEnd->Fill(startDist, endDist, 1.);
+                            fTH2DVec[size_t(TH2DLabels::DStartVsDEnd)]->Fill(startDist, endDist, 1.);
                             
                             // Look at number of wires crossed in each plane
                             for(size_t planeIdx = 0; planeIdx < 3; planeIdx++)
@@ -400,21 +500,21 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                                     int    numHits    = viewHitMap[planeIdx].size();
                                     double hitRatio   = deltaWires > 0 ? double(numHits)/double(deltaWires) : 0.;
                                     
-                                    fDeltaWiresTrk[planeIdx]->Fill(deltaWires, 1.);
-                                    fNumHitsTrk[planeIdx]->Fill(numHits, 1.);
-                                    if (deltaWires > 7) fHitWireRatioTrk[planeIdx]->Fill(std::min(1.99,hitRatio), 1.);
-                                    fRatioVsDWires[planeIdx]->Fill(std::min(deltaWires,199), std::min(1.99,hitRatio));
+                                    fTH1DVecVec[size_t(TH1DLabels::DeltaWiresTrk)][planeIdx]->Fill(deltaWires, 1.);
+                                    fTH1DVecVec[size_t(TH1DLabels::NumHitsTrk)][planeIdx]->Fill(numHits, 1.);
+                                    if (deltaWires > 7) fTH1DVecVec[size_t(TH1DLabels::HitWireRatioTrk)][planeIdx]->Fill(std::min(1.99,hitRatio), 1.);
+                                    fTProfileVecVec[size_t(TProfileLabels::RatioVsDWires)][planeIdx]->Fill(std::min(deltaWires,199), std::min(1.99,hitRatio));
                                 }
                                 catch(...) {}
                             }
                         }
                         
-                        fFitVsPFPartEff->Fill(pfPartLen, trkMatch);
-                        fFitVsPFNHitsEff->Fill(nHitsTotal, trkMatch);
+                        fTProfileVec[size_t(TProfileLabels::FitVsPFPartEff)]->Fill(pfPartLen, trkMatch);
+                        fTProfileVec[size_t(TProfileLabels::FitVsPFNHitsEff)]->Fill(nHitsTotal, trkMatch);
                     }
                     
-                    fNumTrksPFPart->Fill(nTrksPFPart, 1.);
-                    fNumTrksPFPartL->Fill(nTrksPFPartL, 1.);
+                    fTH1DVec[size_t(TH1DLabels::NumTrksPFPart)]->Fill(nTrksPFPart, 1.);
+                    fTH1DVec[size_t(TH1DLabels::NumTrksPFPartL)]->Fill(nTrksPFPartL, 1.);
                     
                     int nFitTrksPFPart(fitTrackVec.size());
                     
@@ -426,10 +526,10 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                         double projLen   = std::min(499.5,projectedLength(fitTrack.get()));
                         double fitEndLen = std::min(499.5,(fitTrack->Vertex() - fitTrack->End()).Mag());
                         
-                        fFitTrackLen->Fill(fitLen,1.);
-                        fFitTrackProjLen->Fill(projLen,1.);
-                        fFitEndLen->Fill(fitEndLen,1.);
-                        fFitELVsTL->Fill(fitEndLen,fitLen,1.);
+                        fTH1DVec[size_t(TH1DLabels::FitTrackLen)]->Fill(fitLen,1.);
+                        fTH1DVec[size_t(TH1DLabels::FitTrackProjLen)]->Fill(projLen,1.);
+                        fTH1DVec[size_t(TH1DLabels::FitEndLen)]->Fill(fitEndLen,1.);
+                        fTH2DVec[size_t(TH2DLabels::FitELVsTL)]->Fill(fitEndLen,fitLen,1.);
                         
                         // Quick check to look for tracks which have trajectories gone awry
                         TVector3 lastTrajPos(fitTrack->LocationAtPoint(0));
@@ -440,8 +540,8 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                         TVector3 trajStartDiff = fitTrack->Vertex() - fitTrack->LocationAtPoint(1);
                         TVector3 trajEndDiff   = fitTrack->End()    - fitTrack->LocationAtPoint(fitTrack->NumberTrajectoryPoints() - 2);
                         
-                        fTrajStartDiff->Fill(std::min(trajStartDiff.Mag(),49.9), 1.);
-                        fTrajEndDiff->Fill(std::min(trajEndDiff.Mag(),49.9), 1.);
+                        fTH1DVec[size_t(TH1DLabels::TrajStartDiff)]->Fill(std::min(trajStartDiff.Mag(),49.9), 1.);
+                        fTH1DVec[size_t(TH1DLabels::TrajEndDiff)]->Fill(std::min(trajEndDiff.Mag(),49.9), 1.);
                         
                         // Make the assumption that the hit order in the association corresponds to the trajectory point order
                         std::vector<art::Ptr<recob::Hit>> trackHitVector = trackHitAssns.at(fitTrack.key());
@@ -478,6 +578,29 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                             TVector3             dir      = trajPos - lastTrajPos;
                             double               disp     = dir.Mag();
                             
+                            const geo::WireID    wireID   = trackHit->WireID();
+                            const geo::WireGeo&  wireGeo  = fGeometry->Wire(wireID);
+                            
+                            TVector3             wireVec  = wireGeo.Direction();
+                            
+                            // Want to break out y-z components from angle to x axis
+                            TVector3 trajYZ(0.,trajDir.Y(),trajDir.Z());
+                            
+                            if (trajYZ.Mag() > 0.) trajYZ.SetMag(1.);
+                            
+                            double cosAngToWire = trajYZ.Dot(wireVec);
+                            double angleToWire  = 180. * acos(cosAngToWire) / M_PI;
+                            double angleToAxis  = 180. * acos(trajDir.X()) / M_PI;
+                            
+//                            if (abs(angleToAxis - 90.) < 0.25)
+//                            {
+//                                std::cout << "* angleToAxis: " << angleToAxis << ", trajDir: " << trajDir.X() << "," << trajDir.Y() << "," << trajDir.Z() << std::endl;
+//                            }
+                           
+                            fTH1DVec[size_t(TH1DLabels::AngleToWire)]->Fill(angleToWire, 1.);
+                            fTH1DVec[size_t(TH1DLabels::AngleToAxis)]->Fill(angleToAxis, 1.);
+                            fTH2DVecVec[size_t(TH2DLabels::HitPHVsAngle)][view]->Fill(angleToWire, std::min(trackHit->PeakAmplitude(),float(249.8)), 1.);
+                            
                             if (disp > 0.) dir.SetMag(1.);
                             
                             if (dir.Dot(lastPntDir) < 0.) disp = -disp;
@@ -492,11 +615,11 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                             double   doca    = docaVec.Mag();
                             double   cosTraj = lastTrajDir.Dot(trajDir);
                             
-                            fTrajDispDiff->Fill(std::max(-4.99,std::min(4.99,disp)), 1.);
-                            fTrajDispAng->Fill(std::max(-0.99,std::min(0.99,dir.Dot(lastPntDir))), 1.);
-                            fTrajAng->Fill(std::max(-0.99,std::min(0.99,cosTraj)), 1.);
-                            fTrajDocaAll->Fill(std::min(doca,9.99), 1.);
-                            fTrajDoca[bestViewMap[view]]->Fill(std::min(doca,9.99), 1.);
+                            fTH1DVec[size_t(TH1DLabels::TrajDispDiff)]->Fill(std::max(-4.99,std::min(4.99,disp)), 1.);
+                            fTH1DVec[size_t(TH1DLabels::TrajDispAng)]->Fill(std::max(-0.99,std::min(0.99,dir.Dot(lastPntDir))), 1.);
+                            fTH1DVec[size_t(TH1DLabels::TrajAng)]->Fill(std::max(-0.99,std::min(0.99,cosTraj)), 1.);
+                            fTH1DVec[size_t(TH1DLabels::TrajDocaAll)]->Fill(std::min(doca,9.99), 1.);
+                            fTH1DVecVec[size_t(TH1DLabels::TrajDoca)][bestViewMap[view]]->Fill(std::min(doca,9.99), 1.);
                             
                             lastPntDir  = dir;
                             lastTrajPos = trajPos;
@@ -504,15 +627,15 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                         }
                     }
                     
-                    fNumFitTrksPFPart->Fill(nFitTrksPFPart, 1.);
-                    if (nTrksPFPartL > 0) fNumFitTrksPFPartL->Fill(nFitTrksPFPart, 1.);
+                    fTH1DVec[size_t(TH1DLabels::NumFitTrksPFPart)]->Fill(nFitTrksPFPart, 1.);
+                    if (nTrksPFPartL > 0) fTH1DVec[size_t(TH1DLabels::NumFitTrksPFPartL)]->Fill(nFitTrksPFPart, 1.);
                     
                     if (nTrksPFPartL > 0 && nFitTrksPFPart < 1)
                     {
-                        fNumPFPartHits->Fill(nHitsTotal, 1.);
-                        fNumPFPartViews->Fill(nViews, 1.);
-                        if (nHitsTotal > 500) fNumPFPartViewsL->Fill(nViews, 1.);
-                        fViewVsHits->Fill(nHitsTotal, nViews, 1.);
+                        fTH1DVec[size_t(TH1DLabels::NumPFPartHits)]->Fill(nHitsTotal, 1.);
+                        fTH1DVec[size_t(TH1DLabels::NumPFPartViews)]->Fill(nViews, 1.);
+                        if (nHitsTotal > 500) fTH1DVec[size_t(TH1DLabels::NumPFPartViewsL)]->Fill(nViews, 1.);
+                        fTH2DVec[size_t(TH2DLabels::ViewVsHits)]->Fill(nHitsTotal, nViews, 1.);
                     }
                     
                     nPandoraTracks += pfPartTrackVec.size();
@@ -520,15 +643,15 @@ void PandoraAnalysisAlg::pandoraAnalysis(const art::Event& event) const
                 }
             }
             
-            std::cout << "~~ # pandora tracks: " << nPandoraTracks << ", long: " << nPandoraTracksL << ", # fit tracks: " << nFitTracks << std::endl;
-            fNumPFPartTracks->Fill(nPandoraTracks, 1.);
-            fNumPFPartTracksL->Fill(nPandoraTracksL, 1.);
-            fNumFitTracks->Fill(nFitTracks, 1.);
+//            std::cout << "~~ # pandora tracks: " << nPandoraTracks << ", long: " << nPandoraTracksL << ", # fit tracks: " << nFitTracks << std::endl;
+            fTH1DVec[size_t(TH1DLabels::NumPFPartTracks)]->Fill(nPandoraTracks, 1.);
+            fTH1DVec[size_t(TH1DLabels::NumPFPartTracksL)]->Fill(nPandoraTracksL, 1.);
+            fTH1DVec[size_t(TH1DLabels::NumFitTracks)]->Fill(nFitTracks, 1.);
             
-            fNPrimPFParticles->Fill(nPrimaryPFParticles, 1.);
-            fNPrimWDaughters->Fill(nPrimWDaughters, 1.);
-            fNpdg13PFParticles->Fill(nPdg13PFParticles, 1.);
-            fNpdg11PFParticles->Fill(nPdg11PFParticles, 1.);
+            fTH1DVec[size_t(TH1DLabels::NPrimPFParticles)]->Fill(nPrimaryPFParticles, 1.);
+            fTH1DVec[size_t(TH1DLabels::NPrimWDaughters)]->Fill(nPrimWDaughters, 1.);
+            fTH1DVec[size_t(TH1DLabels::Npdg13PFParticles)]->Fill(nPdg13PFParticles, 1.);
+            fTH1DVec[size_t(TH1DLabels::Npdg11PFParticles)]->Fill(nPdg11PFParticles, 1.);
         }
         
     }
