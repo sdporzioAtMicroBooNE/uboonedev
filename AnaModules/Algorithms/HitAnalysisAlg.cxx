@@ -56,15 +56,15 @@ void HitAnalysisAlg::initializeHists(art::ServiceHandle<art::TFileService>& tfs,
     fHitsByWire[1]            = dir.make<TH1D>("HitsByWire1", ";Wire #", fGeometry->Nwires(1), 0., fGeometry->Nwires(1));
     fHitsByWire[2]            = dir.make<TH1D>("HitsByWire2", ";Wire #", fGeometry->Nwires(2), 0., fGeometry->Nwires(2));
     
-    fPulseHeight[0]           = dir.make<TH1D>("PulseHeight0",  "PH (ADC)",  150,  0.,  150.);
-    fPulseHeight[1]           = dir.make<TH1D>("PulseHeight1",  "PH (ADC)",  150,  0.,  150.);
-    fPulseHeight[2]           = dir.make<TH1D>("PulseHeight2",  "PH (ADC)",  150,  0.,  150.);
-    fPulseHeightSingle[0]     = dir.make<TH1D>("PulseHeightS0", "PH (ADC)",  150,  0.,  150.);
-    fPulseHeightSingle[1]     = dir.make<TH1D>("PulseHeightS1", "PH (ADC)",  150,  0.,  150.);
-    fPulseHeightSingle[2]     = dir.make<TH1D>("PulseHeightS2", "PH (ADC)",  150,  0.,  150.);
-    fPulseHeightMulti[0]      = dir.make<TH1D>("PulseHeightM0", "PH (ADC)",  150,  0.,  150.);
-    fPulseHeightMulti[1]      = dir.make<TH1D>("PulseHeightM1", "PH (ADC)",  150,  0.,  150.);
-    fPulseHeightMulti[2]      = dir.make<TH1D>("PulseHeightM2", "PH (ADC)",  150,  0.,  150.);
+    fPulseHeight[0]           = dir.make<TH1D>("PulseHeight0",  "PH (ADC)",  300,  0.,  150.);
+    fPulseHeight[1]           = dir.make<TH1D>("PulseHeight1",  "PH (ADC)",  300,  0.,  150.);
+    fPulseHeight[2]           = dir.make<TH1D>("PulseHeight2",  "PH (ADC)",  300,  0.,  150.);
+    fPulseHeightSingle[0]     = dir.make<TH1D>("PulseHeightS0", "PH (ADC)",  300,  0.,  150.);
+    fPulseHeightSingle[1]     = dir.make<TH1D>("PulseHeightS1", "PH (ADC)",  300,  0.,  150.);
+    fPulseHeightSingle[2]     = dir.make<TH1D>("PulseHeightS2", "PH (ADC)",  300,  0.,  150.);
+    fPulseHeightMulti[0]      = dir.make<TH1D>("PulseHeightM0", "PH (ADC)",  300,  0.,  150.);
+    fPulseHeightMulti[1]      = dir.make<TH1D>("PulseHeightM1", "PH (ADC)",  300,  0.,  150.);
+    fPulseHeightMulti[2]      = dir.make<TH1D>("PulseHeightM2", "PH (ADC)",  300,  0.,  150.);
     fChi2DOF[0]               = dir.make<TH1D>("Chi2DOF0",      "Chi2DOF",   502, -1.,  250.);
     fChi2DOF[1]               = dir.make<TH1D>("Chi2DOF1",      "Chi2DOF",   502, -1.,  250.);
     fChi2DOF[2]               = dir.make<TH1D>("Chi2DOF2",      "Chi2DOF",   502, -1.,  250.);
