@@ -1,21 +1,21 @@
 art_make( BASENAME_ONLY
           LIBRARY_NAME UBooneDevAlgs
           LIB_LIBRARIES 
-			lardata_RawData
-            lardata_RecoBase
-            lardata_Utilities
-            ${FHICLCPP}
+			lardataobj_RawData
+                        lardataobj_RecoBase
+                        lardata_Utilities
+                        ${FHICLCPP}
 			${CETLIB}
 			${ROOT_BASIC_LIB_LIST}
-            larcore_Geometry
+                        larcore_Geometry
 	  		larcore_Geometry_Geometry_service
 			lardata_DetectorInfoServices_DetectorPropertiesServiceStandard_service
 			larevt_Filters
 			larevt_CalibrationDBI_IOVData
 			larevt_CalibrationDBI_Providers
-			lardata_RecoBase
+			lardataobj_RecoBase
 			lardata_RecoBaseArt
-            ${ART_FRAMEWORK_CORE}
+                        ${ART_FRAMEWORK_CORE}
 			${ART_FRAMEWORK_PRINCIPAL}
 			${ART_FRAMEWORK_SERVICES_REGISTRY}
 			${ART_FRAMEWORK_SERVICES_OPTIONAL}

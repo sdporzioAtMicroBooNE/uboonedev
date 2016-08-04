@@ -19,7 +19,7 @@
 #include "larcore/Geometry/Geometry.h"
 #include "larcore/Geometry/geo.h"
 
-#include "lardata/RecoBase/Hit.h"
+#include "lardataobj/RecoBase/Hit.h"
 
 class HitFilter : public art::EDProducer
 {

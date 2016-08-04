@@ -4,8 +4,8 @@
 art_make(BASENAME_ONLY
 	LIBRARY_NAME AnaModules
 	LIB_LIBRARIES 
-		     lardata_RecoBase
-		     lardata_AnalysisBase
+		     lardataobj_RecoBase
+		     lardataobj_AnalysisBase
              larcore_Geometry
 		     larcore_Geometry_Geometry_service
 		     lardata_Utilities
@@ -20,13 +20,13 @@ art_make(BASENAME_ONLY
 	MODULE_LIBRARIES  
 			    UBooneDevAlgs
 			    larreco_RecoAlg
-                larreco_RecoAlg_Cluster3DAlgs
+                            larreco_RecoAlg_Cluster3DAlgs
 			    larsim_Simulation
-			    lardata_RawData
+			    lardataobj_RawData
 			    lardata_RecoObjects
-			    lardata_RecoBase
-			    lardata_MCBase
-                lardata_AnalysisBase
+			    lardataobj_RecoBase
+			    lardataobj_MCBase
+                            lardataobj_AnalysisBase
 			    larcore_Geometry
 			    larcore_Geometry_Geometry_service
 			    lardata_Utilities
