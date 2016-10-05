@@ -31,11 +31,13 @@
 #include "TProfile.h"
 #include "TProfile2D.h"
 
-namespace hitanalysis
+namespace HitAnalysis
 {
     
 // The following typedefs will, obviously, be useful
-using  HitPtrVec = std::vector<art::Ptr<recob::Hit>>;
+using HitPtrVec       = std::vector<art::Ptr<recob::Hit>>;
+using ViewHitMap      = std::map<size_t,HitPtrVec>;
+using TrackViewHitMap = std::map<int,ViewHitMap>;
     
 class HitAnalysisAlg
 {
@@ -50,7 +52,8 @@ public:
     void initializeHists(art::ServiceHandle<art::TFileService>&, const std::string&);
     void endJob(int numEvents);
     
-    void fillHistograms(const HitPtrVec& hitPtrVec) const;
+    void fillHistograms(const TrackViewHitMap&) const;
+    void fillHistograms(const HitPtrVec&)       const;
     
 private:
 
@@ -71,6 +74,10 @@ private:
     TH1D*     fHitSumADC[3];
     TH2D*     fNDFVsChi2[3];
     TH2D*     fPulseHVsWidth[3];
+    TH2D*     fPulseHVsCharge[3];
+    TProfile* fPulseHVsHitNo[3];
+    TProfile* fChargeVsHitNo[3];
+    TProfile* fChargeVsHitNoS[3];
     
     // Useful services, keep copies for now (we can update during begin run periods)
     const geo::GeometryCore*           fGeometry;             ///< pointer to Geometry service

@@ -123,8 +123,6 @@ private:
                                     int&) const;
     
     // The following typedefs will, obviously, be useful
-    using  HitPtrVec = std::vector<art::Ptr<recob::Hit>>;
-    
     double length(const recob::Track* track);
     
     double projectedLength(const recob::Track* track);
@@ -136,9 +134,9 @@ private:
     std::string fWireProducerLabel;
     
     // Pointers to the hit analyses we will do
-    hitanalysis::HitAnalysisAlg fTrackHitsAnalysisAlg;
-    hitanalysis::HitAnalysisAlg fPFPartHitsAnalysisAlg;
-    hitanalysis::HitAnalysisAlg fAllHitsAnalysisAlg;
+    HitAnalysis::HitAnalysisAlg fTrackHitsAnalysisAlg;
+    HitAnalysis::HitAnalysisAlg fPFPartHitsAnalysisAlg;
+    HitAnalysis::HitAnalysisAlg fAllHitsAnalysisAlg;
     
     // Pandora analysis
     pandoraanalysis::PandoraAnalysisAlg fPandoraAnalysis;
@@ -255,7 +253,7 @@ void TrackHitAna::analyze(const art::Event& event)
     event.getByLabel(fTrackProducerLabel, trackHandle);
     
     // Get a local mapping between tracks and hits
-    std::map<int,std::map<size_t,HitPtrVec>> trackHitVecMap;
+    HitAnalysis::TrackViewHitMap trackHitVecMap;
     
     if (trackHandle.isValid())
     {
@@ -266,10 +264,10 @@ void TrackHitAna::analyze(const art::Event& event)
         {
             art::Ptr<recob::Track> track(trackHandle,trackIdx);
             
-            std::map<size_t,HitPtrVec>& viewHitMap = trackHitVecMap[track.key()];
+            HitAnalysis::ViewHitMap& viewHitMap = trackHitVecMap[track.key()];
             
             // Recover the associated hits
-            HitPtrVec trackHitVec = trackAssns.at(track.key());
+            HitAnalysis::HitPtrVec trackHitVec = trackAssns.at(track.key());
             
             for(int viewIdx = 0; viewIdx < 3; viewIdx++)
             {
@@ -286,7 +284,7 @@ void TrackHitAna::analyze(const art::Event& event)
     }
     
     // Now pass through this map and do some matching
-    HitPtrVec fitTrackHits;
+    HitAnalysis::HitPtrVec fitTrackHits;
     
     for(const auto& trackHitVecMapItr : trackHitVecMap)
     {
@@ -302,7 +300,7 @@ void TrackHitAna::analyze(const art::Event& event)
     // Sort the container so we can remove these hits later
     std::sort(fitTrackHits.begin(),fitTrackHits.end());
     
-    fTrackHitsAnalysisAlg.fillHistograms(fitTrackHits);
+    fTrackHitsAnalysisAlg.fillHistograms(trackHitVecMap);
     
     // The game plan for this module is to look at hits associated to tracks
     // To do this we need a valid track collection for those we are hoping to look at
@@ -310,7 +308,7 @@ void TrackHitAna::analyze(const art::Event& event)
     event.getByLabel(fPFParticleProducerLabel, pfTrackHandle);
     
     // Get a local mapping between tracks and hits
-    std::map<int,std::map<size_t,HitPtrVec>> pfTrackHitVecMap;
+    HitAnalysis::TrackViewHitMap pfTrackHitVecMap;
     
     if (pfTrackHandle.isValid())
     {
@@ -321,10 +319,10 @@ void TrackHitAna::analyze(const art::Event& event)
         {
             art::Ptr<recob::Track> track(pfTrackHandle,trackIdx);
             
-            std::map<size_t,HitPtrVec>& viewHitMap = pfTrackHitVecMap[track.key()];
+            HitAnalysis::ViewHitMap& viewHitMap = pfTrackHitVecMap[track.key()];
             
             // Recover the associated hits
-            HitPtrVec trackHitVec = trackAssns.at(track.key());
+            HitAnalysis::HitPtrVec trackHitVec = trackAssns.at(track.key());
             
             for(int viewIdx = 0; viewIdx < 3; viewIdx++)
             {
@@ -341,7 +339,7 @@ void TrackHitAna::analyze(const art::Event& event)
     }
     
     // Now pass through this map and do some matching
-    HitPtrVec pfTrackHits;
+    HitAnalysis::HitPtrVec pfTrackHits;
     
     for(const auto& trackHitVecMapItr : pfTrackHitVecMap)
     {
@@ -349,20 +347,20 @@ void TrackHitAna::analyze(const art::Event& event)
         
         for(const auto& viewHitPair : trackHitVecMapItr.second)
         {
-            const HitPtrVec& trackHitVec = viewHitPair.second;
+            const HitAnalysis::HitPtrVec& trackHitVec = viewHitPair.second;
         
             art::Ptr<recob::Track> track(pfTrackHandle, trackIdx);
         
             if (length(track.get()) < 5.) continue;
             
             std::copy(trackHitVec.begin(),trackHitVec.end(),std::back_inserter(pfTrackHits));
-            
-            fPFPartHitsAnalysisAlg.fillHistograms(trackHitVec);
         }
     }
     
     // Sort the container so we can remove these hits later
     std::sort(pfTrackHits.begin(),pfTrackHits.end());
+    
+    fPFPartHitsAnalysisAlg.fillHistograms(pfTrackHitVecMap);
     
     // Make a pass through all hits to make contrasting plots
     art::Handle< std::vector<recob::Hit> > hitHandle;
@@ -370,12 +368,12 @@ void TrackHitAna::analyze(const art::Event& event)
 
     if (hitHandle.isValid())
     {
-        HitPtrVec allHitVec;
+        HitAnalysis::HitPtrVec allHitVec;
         art::fill_ptr_vector(allHitVec, hitHandle);
         
         std::sort(allHitVec.begin(),allHitVec.end());
         
-        HitPtrVec nonTrackHits;
+        HitAnalysis::HitPtrVec nonTrackHits;
         
         std::set_difference(allHitVec.begin(),allHitVec.end(),fitTrackHits.begin(),fitTrackHits.end(),std::back_inserter(nonTrackHits));
 //        std::set_difference(allHitVec.begin(),allHitVec.end(),pfTrackHits.begin(),pfTrackHits.end(),std::back_inserter(nonTrackHits));

@@ -8,7 +8,7 @@
 #include <cmath>
 #include <algorithm>
 
-namespace hitanalysis
+namespace HitAnalysis
 {
 //----------------------------------------------------------------------------
 /// Constructor.
@@ -94,7 +94,62 @@ void HitAnalysisAlg::initializeHists(art::ServiceHandle<art::TFileService>& tfs,
     fPulseHVsWidth[0]         = dir.make<TH2D>("PHVsWidth0",    ";PH;Width", 100,  0.,  100., 100,  0., 10.);
     fPulseHVsWidth[1]         = dir.make<TH2D>("PHVsWidth1",    ";PH;Width", 100,  0.,  100., 100,  0., 10.);
     fPulseHVsWidth[2]         = dir.make<TH2D>("PHVsWidth2",    ";PH;Width", 100,  0.,  100., 100,  0., 10.);
+    
+    fPulseHVsCharge[0]        = dir.make<TH2D>("PHVsChrg0",     ";PH;Q",     100,  0.,  100., 100,  0., 2000.);
+    fPulseHVsCharge[1]        = dir.make<TH2D>("PHVsChrg1",     ";PH;Q",     100,  0.,  100., 100,  0., 2000.);
+    fPulseHVsCharge[2]        = dir.make<TH2D>("PHVsChrg2",     ";PH;Q",     100,  0.,  100., 100,  0., 2000.);
+    
+    fPulseHVsHitNo[0]         = dir.make<TProfile>("PHVsNo0",   ";Hit #;PH", 1000, 0., 1000., 0., 100.);
+    fPulseHVsHitNo[1]         = dir.make<TProfile>("PHVsNo1",   ";Hit #;PH", 1000, 0., 1000., 0., 100.);
+    fPulseHVsHitNo[2]         = dir.make<TProfile>("PHVsNo2",   ";Hit #;PH", 1000, 0., 1000., 0., 100.);
+    
+    fChargeVsHitNo[0]         = dir.make<TProfile>("QVsNo0",    ";Hit No;Q", 1000, 0., 1000., 0., 2000.);
+    fChargeVsHitNo[1]         = dir.make<TProfile>("QVsNo1",    ";Hit No;Q", 1000, 0., 1000., 0., 2000.);
+    fChargeVsHitNo[2]         = dir.make<TProfile>("QVsNo2",    ";Hit No;Q", 1000, 0., 1000., 0., 2000.);
+    
+    fChargeVsHitNoS[0]        = dir.make<TProfile>("QVsNoS0",   ";Hit No;Q", 1000, 0., 1000., 0., 2000.);
+    fChargeVsHitNoS[1]        = dir.make<TProfile>("QVsNoS1",   ";Hit No;Q", 1000, 0., 1000., 0., 2000.);
+    fChargeVsHitNoS[2]        = dir.make<TProfile>("QVsNoS2",   ";Hit No;Q", 1000, 0., 1000., 0., 2000.);
 
+    return;
+}
+    
+void HitAnalysisAlg::fillHistograms(const TrackViewHitMap& trackViewHitMap) const
+{
+    int    longTrackID(0);
+    size_t longTrackLen(0);
+    
+    for(const auto& trackHitVecMapItr : trackViewHitMap)
+    {
+        size_t numHits(0);
+        
+        for(const auto& viewHitPair : trackHitVecMapItr.second)
+        {
+            fillHistograms(viewHitPair.second);
+            
+            if (viewHitPair.first == 2 && viewHitPair.second.size() > numHits) numHits = viewHitPair.second.size();
+        }
+        
+        if (numHits > longTrackLen)
+        {
+            longTrackID  = trackHitVecMapItr.first;
+            longTrackLen = numHits;
+        }
+    }
+    
+    for(const auto& viewHitPair : trackViewHitMap.find(longTrackID)->second)
+    {
+        int hitNo(0);
+        
+        for(const auto& hitPtr : viewHitPair.second)
+        {
+            if (hitPtr->Multiplicity() < 2) fChargeVsHitNoS[viewHitPair.first]->Fill(float(hitNo)+0.5, std::min(float(1999.),hitPtr->Integral()), 1.);
+            fPulseHVsHitNo[viewHitPair.first]->Fill(float(hitNo)+0.5, std::min(float(99.9),hitPtr->PeakAmplitude()), 1.);
+            fChargeVsHitNo[viewHitPair.first]->Fill(float(hitNo)+0.5, std::min(float(1999.),hitPtr->Integral()), 1.);
+            hitNo++;
+        }
+    }
+    
     return;
 }
     
@@ -111,14 +166,10 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         float              chi2DOF  = std::min(hitPtr->GoodnessOfFit(),float(249.8));
         int                numDOF   = hitPtr->DegreesOfFreedom();
         int                hitMult  = hitPtr->Multiplicity();
-        //              int                hitIdx   = hitPtr->LocalIndex();
         float              charge   = hitPtr->Integral();
         float              sumADC   = hitPtr->SummedADC();
         float              hitPH    = std::min(hitPtr->PeakAmplitude(),float(249.8));
         float              hitSigma = hitPtr->RMS();
-        //              raw::TDCtick_t     hitStart = hitPtr->StartTick();
-        //              raw::TDCtick_t     hitEnd   = hitPtr->EndTick();
-        //              float              hitTime  = hitPtr->PeakTime();
         
         size_t             view     = wireID.Plane;
         size_t             wire     = wireID.Wire;
@@ -134,21 +185,17 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         fFitWidth[view]->Fill(std::min(float(9.99),hitSigma), 1.);
         fHitSumADC[view]->Fill(sumADC, 1.);
         fNDFVsChi2[view]->Fill(numDOF, chi2DOF, 1.);
-//        fPulseHVsWidth[view]->Fill(std::min(float(99.9),hitPH),std::min(float(9.99),hitSigma), 1.);
         
         if (hitMult == 1)
         {
             fPulseHeightSingle[view]->Fill(hitPH, 1.);
             fChi2DOFSingle[view]->Fill(chi2DOF, 1.);
-            fPulseHVsWidth[view]->Fill(std::min(float(99.9),hitPH),std::min(float(9.99),hitSigma), 1.);
+            fPulseHVsWidth[view]->Fill(std::min(float(99.9),hitPH), std::min(float(9.99),hitSigma), 1.);
+            fPulseHVsCharge[view]->Fill(std::min(float(99.9),hitPH), std::min(float(1999.),charge), 1.);
         }
         else
             fPulseHeightMulti[view]->Fill(hitPH, 1.);
-        
-//        if (hitPH < 15. && hitSigma > 9.) std::cout << "==> Hit view: " << view << ", wire: " << wire << ", time: " << hitPtr->PeakTime() << " has PW/PH: " << hitSigma << "/" << hitPH << ", Mult: " << hitMult << ", chi: " << chi2DOF << std::endl;
     }
-    
-//    std::cout << "** " << fLocalDirName << " hits, # per plane: " << nHitsPerView[0] << " / " << nHitsPerView[1] << " / " << nHitsPerView[2] << std::endl;
     
     return;
 }
