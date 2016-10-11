@@ -62,6 +62,7 @@ private:
     
     // Pointers to the histograms we'll create.
     TH1D*     fHitsByWire[3];
+    TH1D*     fHitsByTime[3];
     TH1D*     fPulseHeight[3];
     TH1D*     fPulseHeightSingle[3];
     TH1D*     fPulseHeightMulti[3];
