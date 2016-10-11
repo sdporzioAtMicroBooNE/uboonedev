@@ -31,7 +31,7 @@
 #include "lardataobj/RecoBase/PFParticle.h"
 #include "lardataobj/RecoBase/Track.h"
 #include "lardataobj/RecoBase/Vertex.h"
-#include "lardataobj/RecoBase/Spacepoint.h"
+#include "lardataobj/RecoBase/SpacePoint.h"
 
 #include "TH1.h"
 #include "TH2.h"
