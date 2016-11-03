@@ -52,6 +52,7 @@
 #include "cetlib/exception.h"
 
 #include "Algorithms/HitAnalysisAlg.h"
+#include "Algorithms/SpacePointAnalysisAlg.h"
 #include "Algorithms/PandoraAnalysisAlg.h"
 #include "Algorithms/CalWireAnalysisAlg.h"
 
@@ -138,6 +139,9 @@ private:
     HitAnalysis::HitAnalysisAlg fPFPartHitsAnalysisAlg;
     HitAnalysis::HitAnalysisAlg fAllHitsAnalysisAlg;
     
+    // Space Point analysis
+    SpacePointAnalysis::SpacePointAnalysisAlg fSpacePointAnalysisAlg;
+    
     // Pandora analysis
     pandoraanalysis::PandoraAnalysisAlg fPandoraAnalysis;
     
@@ -170,6 +174,7 @@ TrackHitAna::TrackHitAna(fhicl::ParameterSet const& parameterSet)
       fTrackHitsAnalysisAlg(parameterSet),
       fPFPartHitsAnalysisAlg(parameterSet),
       fAllHitsAnalysisAlg(parameterSet),
+      fSpacePointAnalysisAlg(parameterSet),
       fPandoraAnalysis(parameterSet),
       fCalWireAnalysisAlg(parameterSet),
       fPedestalRetrievalAlg(*lar::providerFrom<lariov::DetPedestalService>())
@@ -205,6 +210,8 @@ void TrackHitAna::beginJob()
     fTrackHitsAnalysisAlg.initializeHists(tfs, "FitTrackHits");
     fPFPartHitsAnalysisAlg.initializeHists(tfs, "PFPartHits");
     fAllHitsAnalysisAlg.initializeHists(tfs, "AllHits");
+    
+    fSpacePointAnalysisAlg.initializeHists(tfs, "SpacePoints");
     
     fPandoraAnalysis.initializeHists(tfs, "PandoraAnalysis");
     
@@ -258,7 +265,7 @@ void TrackHitAna::analyze(const art::Event& event)
     if (trackHandle.isValid())
     {
         // Recover the collection of associations between tracks and hits
-        art::FindManyP<recob::Hit> trackAssns(trackHandle, event, fTrackProducerLabel);
+        art::FindManyP<recob::Hit> trackHitAssns(trackHandle, event, fTrackProducerLabel);
         
         for(size_t trackIdx = 0; trackIdx < trackHandle->size(); trackIdx++)
         {
@@ -267,7 +274,7 @@ void TrackHitAna::analyze(const art::Event& event)
             HitAnalysis::ViewHitMap& viewHitMap = trackHitVecMap[track.key()];
             
             // Recover the associated hits
-            HitAnalysis::HitPtrVec trackHitVec = trackAssns.at(track.key());
+            HitAnalysis::HitPtrVec trackHitVec = trackHitAssns.at(track.key());
             
             for(int viewIdx = 0; viewIdx < 3; viewIdx++)
             {
@@ -280,6 +287,39 @@ void TrackHitAna::analyze(const art::Event& event)
             
             // It is helpful if the hits are in time order (by view)
 //            std::sort(trackHitVec.begin(),trackHitVec.end(),[](const recob::Hit* left, const recob::Hit* right) {return left->PeakTime() < right->PeakTime();});
+        }
+        
+        // Get handle to space points
+        art::Handle<std::vector<recob::SpacePoint> > spacePointHandle;
+        event.getByLabel(fTrackProducerLabel, spacePointHandle);
+        
+        if (spacePointHandle.isValid())
+        {
+            // Get the necessary associations
+            art::FindManyP<recob::SpacePoint> trackSpacePointAssns(trackHandle, event, fTrackProducerLabel);
+            art::FindManyP<recob::Hit>        spacePointHitAssns(spacePointHandle, event, fTrackProducerLabel);
+            
+            // loop through tracks again
+            for(size_t trackIdx = 0; trackIdx < trackHandle->size(); trackIdx++)
+            {
+                art::Ptr<recob::Track> track(trackHandle,trackIdx);
+                
+                // Recover the associated hits
+                SpacePointAnalysis::SpacePointPtrVec trackSpacePointVec = trackSpacePointAssns.at(track.key());
+                SpacePointAnalysis::SpacePointHitMap spacePointHitMap;
+                
+                // Go through space points
+                for(const auto& spacePoint : trackSpacePointVec)
+                {
+                    // recover hits associated to this space point
+                    SpacePointAnalysis::HitPtrVec spacePointHitVec = spacePointHitAssns.at(spacePoint.key());
+                    
+                    spacePointHitMap.insert(std::pair<size_t,SpacePointAnalysis::HitPtrVec>(spacePoint.key(),spacePointHitVec));
+                }
+                
+                // Fill hists
+                fSpacePointAnalysisAlg.fillHistograms(trackSpacePointVec, spacePointHitMap);
+            }
         }
     }
     
