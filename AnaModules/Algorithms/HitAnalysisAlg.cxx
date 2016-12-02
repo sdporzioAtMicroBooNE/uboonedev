@@ -114,6 +114,10 @@ void HitAnalysisAlg::initializeHists(art::ServiceHandle<art::TFileService>& tfs,
     fChargeVsHitNoS[0]        = dir.make<TProfile>("QVsNoS0",   ";Hit No;Q", 1000, 0., 1000., 0., 2000.);
     fChargeVsHitNoS[1]        = dir.make<TProfile>("QVsNoS1",   ";Hit No;Q", 1000, 0., 1000., 0., 2000.);
     fChargeVsHitNoS[2]        = dir.make<TProfile>("QVsNoS2",   ";Hit No;Q", 1000, 0., 1000., 0., 2000.);
+    
+    fBadWPulseHeight          = dir.make<TH1D>("BWPulseHeight", "PH (ADC)",  300,  0.,  150.);
+    fBadWPulseHVsWidth        = dir.make<TH2D>("BWPHVsWidth",   ";PH;Width", 100,  0.,  100., 100,  0., 10.);
+    fBadWHitsByWire           = dir.make<TH1D>("BWHitsByWire",  ";Wire #", fGeometry->Nwires(2), 0., fGeometry->Nwires(2));
 
     return;
 }
@@ -182,6 +186,8 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         size_t             view     = wireID.Plane;
         size_t             wire     = wireID.Wire;
         
+        if (view == 2 && (wire == 18 || wire == 527 || wire == 528)) continue;
+        
         nHitsPerView[view]++;
         
         fHitsByWire[view]->Fill(wire,1.);
@@ -201,6 +207,15 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
             fChi2DOFSingle[view]->Fill(chi2DOF, 1.);
             fPulseHVsWidth[view]->Fill(std::min(float(99.9),hitPH), std::min(float(9.99),hitSigma), 1.);
             fPulseHVsCharge[view]->Fill(std::min(float(99.9),hitPH), std::min(float(1999.),charge), 1.);
+            
+            if (view == 2 && hitPH < 5 && hitSigma < 2.2)
+            {
+                std::cout << "++> View: " << view << ", wire: " << wire << ", peakTime: " << peakTime << ", ph: " << hitPH << ", w: " << hitSigma << std::endl;
+                
+                fBadWPulseHeight->Fill(hitPH,1.);
+                fBadWPulseHVsWidth->Fill(std::min(float(99.9),hitPH), std::min(float(9.99),hitSigma), 1.);
+                fBadWHitsByWire->Fill(wire,1.);
+            }
         }
         else
             fPulseHeightMulti[view]->Fill(hitPH, 1.);

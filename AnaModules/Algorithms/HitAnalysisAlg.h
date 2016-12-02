@@ -76,6 +76,9 @@ private:
     TH2D*     fNDFVsChi2[3];
     TH2D*     fPulseHVsWidth[3];
     TH2D*     fPulseHVsCharge[3];
+    TH1D*     fBadWPulseHeight;
+    TH2D*     fBadWPulseHVsWidth;
+    TH1D*     fBadWHitsByWire;
     TProfile* fPulseHVsHitNo[3];
     TProfile* fChargeVsHitNo[3];
     TProfile* fChargeVsHitNoS[3];
