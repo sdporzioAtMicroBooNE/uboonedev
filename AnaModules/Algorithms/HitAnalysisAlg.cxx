@@ -56,6 +56,10 @@ void HitAnalysisAlg::initializeHists(art::ServiceHandle<art::TFileService>& tfs,
     fHitsByWire[1]            = dir.make<TH1D>("HitsByWire1", ";Wire #", fGeometry->Nwires(1), 0., fGeometry->Nwires(1));
     fHitsByWire[2]            = dir.make<TH1D>("HitsByWire2", ";Wire #", fGeometry->Nwires(2), 0., fGeometry->Nwires(2));
     
+    fDriftTimes[0]            = dir.make<TH1D>("DriftTime0",  ";time(ticks)", 3200, 0., 9600.);
+    fDriftTimes[1]            = dir.make<TH1D>("DriftTime1",  ";time(ticks)", 3200, 0., 9600.);
+    fDriftTimes[2]            = dir.make<TH1D>("DriftTime2",  ";time(ticks)", 3200, 0., 9600.);
+    
     fHitsByTime[0]            = dir.make<TH1D>("HitsByTime0", ";Tick",   1600, 0., 6400.);
     fHitsByTime[1]            = dir.make<TH1D>("HitsByTime1", ";Tick",   1600, 0., 6400.);
     fHitsByTime[2]            = dir.make<TH1D>("HitsByTime2", ";Tick",   1600, 0., 6400.);
@@ -200,6 +204,7 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         fFitWidth[view]->Fill(std::min(float(9.99),hitSigma), 1.);
         fHitSumADC[view]->Fill(sumADC, 1.);
         fNDFVsChi2[view]->Fill(numDOF, chi2DOF, 1.);
+        fDriftTimes[view]->Fill(peakTime, 1.);
         
         if (hitMult == 1)
         {

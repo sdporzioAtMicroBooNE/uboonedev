@@ -42,6 +42,7 @@
 #include "art/Framework/Services/Optional/TFileService.h"
 #include "art/Framework/Core/ModuleMacros.h"
 #include "canvas/Persistency/Common/FindManyP.h"
+#include "canvas/Persistency/Common/FindOneP.h"
 #include "messagefacility/MessageLogger/MessageLogger.h"
 #include "fhiclcpp/ParameterSet.h"
 #include "cetlib/exception.h"
@@ -693,15 +694,113 @@ void PFParticleMcAna::analyze(const art::Event& event)
     
     // Build out our MCParticle <---> reco Hit maps
     MakeHitParticleMaps(mcHitCollectionVec, recoHitVec, hitToParticleMap, particleToHitMap);
+    
+    // How many particles?
+    std::cout << "Building MCParticle/trackID map, have " << particleHandle->size() << " particles" << std::endl;
+    std::cout << "-- there are " << mcTruthAssns.size() << " truth associations" << std::endl;
 
     // This loop will build the map between track ID and the MCParticle related to it
     for ( auto const& particle : (*particleHandle) )
     {
         int trackID = particle.TrackId();
+        
+        if (particleMap.find(trackID) != particleMap.end())
+        {
+            std::cout << "--> New MCParticle with same TrackID! ID: " << trackID << std::endl;
+            std::cout << "    Old MCParticle: " << particleMap[trackID] << ", mother: " << particleMap[trackID]->Mother() << ", process: " << particleMap[trackID]->Process() << std::endl;
+            std::cout << "    Replacement:    " << &particle << ", mother: " << particle.Mother() << ", process: " << particle.Process() << std::endl;
+        }
 
         // Add the address of the MCParticle to the map, with the track ID as the key.
         particleMap[trackID] = &particle;
     } // loop over all particles in the event.
+    
+    // Pass through to check hierarchy consistency
+    std::vector<std::tuple<int,int,double,int,int>> countVec;
+    
+    for(const auto& particle : (*particleHandle))
+    {
+        int trackID  = particle.TrackId();
+        int motherID = particle.Mother();
+        int category = -1;
+        
+        if (motherID == 0) category = 0;
+        else
+        {
+            if (particleMap.find(motherID) == particleMap.end()) category = 1;
+            else
+            {
+                const simb::MCParticle* mother = particleMap[motherID];
+                
+                bool foundMothersDaughter(false);
+                
+                for(int idx = 0; idx < mother->NumberDaughters(); idx++)
+                {
+                    if (mother->Daughter(idx) == trackID)
+                    {
+                        foundMothersDaughter = true;
+                        break;
+                    }
+                }
+                
+                if (!foundMothersDaughter) category = 2;
+            }
+        }
+        
+        if (category < 0) continue;
+        
+        if (motherID == 0)
+        {
+            std::cout << " " << std::endl;
+            std::cout << "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << std::endl;
+            std::cout << "======> top of hierarchy, pdg: " << particle.PdgCode() << std::endl;
+        }
+            
+        std::vector<int> particleVec = {trackID};
+        
+        int nParticles(0);
+        int nLost(0);
+        
+        while(!particleVec.empty())
+        {
+            int curTrackID = particleVec.back();
+            
+            particleVec.pop_back();
+            
+            nParticles++;
+            
+            // Check if this track ID exists
+            if (particleMap.find(curTrackID) == particleMap.end())
+            {
+                std::cout << "****>> Current particle is not in MCParticle map! Track ID: " << curTrackID << "... skipping" << std::endl;
+                nLost++;
+                continue;
+            }
+            
+            const simb::MCParticle* curParticle = particleMap[curTrackID];
+            
+            for(int daughterIdx = 0; daughterIdx < curParticle->NumberDaughters(); daughterIdx++)
+            {
+                particleVec.push_back(curParticle->Daughter(daughterIdx));
+            }
+        }
+        
+        countVec.push_back(std::tuple<int,int,double,int,int>(particle.PdgCode(),category,particle.E(),nParticles,nLost));
+    }
+    
+    std::vector<int> catCount = {0,0,0,0};
+    
+    std::cout << "_______________________________________________________________________" << std::endl;
+    for(const auto& tuple : countVec)
+    {
+        std::cout << " --> PDG: " << std::get<0>(tuple) << ", cat: " << std::get<1>(tuple) << ", E: " << std::get<2>(tuple) << ", nParticles: " << std::get<3>(tuple)  << ", nLost: " << std::get<4>(tuple) << std::endl;
+        
+        catCount[std::get<1>(tuple)]++;
+    }
+    
+    std::cout << " cat counts - ";
+    for(size_t idx=0;idx<catCount.size();idx++) std::cout << " cat " << idx << ": " << catCount[idx];
+    std::cout << std::endl;
     
     // Now define the maps relating pfparticles to tracks
     TrackIDToPFParticleVecMap trackIDToPFParticleMap;
