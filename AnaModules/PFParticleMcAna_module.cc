@@ -696,8 +696,8 @@ void PFParticleMcAna::analyze(const art::Event& event)
     MakeHitParticleMaps(mcHitCollectionVec, recoHitVec, hitToParticleMap, particleToHitMap);
     
     // How many particles?
-    std::cout << "Building MCParticle/trackID map, have " << particleHandle->size() << " particles" << std::endl;
-    std::cout << "-- there are " << mcTruthAssns.size() << " truth associations" << std::endl;
+//    std::cout << "Building MCParticle/trackID map, have " << particleHandle->size() << " particles" << std::endl;
+//    std::cout << "-- there are " << mcTruthAssns.size() << " truth associations" << std::endl;
 
     // This loop will build the map between track ID and the MCParticle related to it
     for ( auto const& particle : (*particleHandle) )
@@ -706,9 +706,10 @@ void PFParticleMcAna::analyze(const art::Event& event)
         
         if (particleMap.find(trackID) != particleMap.end())
         {
-            std::cout << "--> New MCParticle with same TrackID! ID: " << trackID << std::endl;
-            std::cout << "    Old MCParticle: " << particleMap[trackID] << ", mother: " << particleMap[trackID]->Mother() << ", process: " << particleMap[trackID]->Process() << std::endl;
-            std::cout << "    Replacement:    " << &particle << ", mother: " << particle.Mother() << ", process: " << particle.Process() << std::endl;
+//            std::cout << "--> New MCParticle with same TrackID! ID: " << trackID << std::endl;
+//            std::cout << "    Old MCParticle: " << particleMap[trackID] << ", mother: " << particleMap[trackID]->Mother() << ", process: " << particleMap[trackID]->Process() << std::endl;
+//            std::cout << "    Replacement:    " << &particle << ", mother: " << particle.Mother() << ", process: " << particle.Process() << std::endl;
+            continue;
         }
 
         // Add the address of the MCParticle to the map, with the track ID as the key.
@@ -748,14 +749,14 @@ void PFParticleMcAna::analyze(const art::Event& event)
         }
         
         if (category < 0) continue;
-        
+/*
         if (motherID == 0)
         {
             std::cout << " " << std::endl;
             std::cout << "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << std::endl;
             std::cout << "======> top of hierarchy, pdg: " << particle.PdgCode() << std::endl;
         }
-            
+*/
         std::vector<int> particleVec = {trackID};
         
         int nParticles(0);
@@ -768,15 +769,15 @@ void PFParticleMcAna::analyze(const art::Event& event)
             particleVec.pop_back();
             
             nParticles++;
-            
+
             // Check if this track ID exists
             if (particleMap.find(curTrackID) == particleMap.end())
             {
-                std::cout << "****>> Current particle is not in MCParticle map! Track ID: " << curTrackID << "... skipping" << std::endl;
+//                std::cout << "****>> Current particle is not in MCParticle map! Track ID: " << curTrackID << "... skipping" << std::endl;
                 nLost++;
                 continue;
             }
-            
+
             const simb::MCParticle* curParticle = particleMap[curTrackID];
             
             for(int daughterIdx = 0; daughterIdx < curParticle->NumberDaughters(); daughterIdx++)

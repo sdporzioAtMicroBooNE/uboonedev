@@ -172,6 +172,7 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
 {
     // Keep track of number of hits per view
     size_t nHitsPerView[] = {0,0,0};
+    size_t negCount(0);
     
     // Loop the hits and make some plots
     for(const auto& hitPtr : hitPtrVec)
@@ -190,7 +191,13 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         size_t             view     = wireID.Plane;
         size_t             wire     = wireID.Wire;
         
-        if (view == 2 && (wire == 18 || wire == 527 || wire == 528)) continue;
+//        if (view == 2 && (wire == 18 || wire == 527 || wire == 528)) continue;
+        
+        if (charge < 0. || sumADC < 0. || hitPH < 0.)
+        {
+            negCount++;
+            std::cout << "Hit view: " << view << ", wire: " << wire << ", PH: " << hitPH << ", charge: " << charge << ", sumADC: " << sumADC << std::endl;
+        }
         
         nHitsPerView[view]++;
         
@@ -225,6 +232,8 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         else
             fPulseHeightMulti[view]->Fill(hitPH, 1.);
     }
+    
+    std::cout << "Number hits: " << nHitsPerView[0]+nHitsPerView[1]+nHitsPerView[2] << ", negative pulses: " << negCount << std::endl;
     
     return;
 }
