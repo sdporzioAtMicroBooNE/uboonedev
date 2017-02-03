@@ -14,7 +14,6 @@ art_make( BASENAME_ONLY
 			larevt_CalibrationDBI_IOVData
 			larevt_CalibrationDBI_Providers
 			lardataobj_RecoBase
-			lardata_RecoBaseArt
                         ${ART_FRAMEWORK_CORE}
 			${ART_FRAMEWORK_PRINCIPAL}
 			${ART_FRAMEWORK_SERVICES_REGISTRY}

@@ -196,7 +196,7 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         if (charge < 0. || sumADC < 0. || hitPH < 0.)
         {
             negCount++;
-            std::cout << "Hit view: " << view << ", wire: " << wire << ", PH: " << hitPH << ", charge: " << charge << ", sumADC: " << sumADC << std::endl;
+            std::cout << "Hit view: " << view << ", wire: " << wire << ", T: " << peakTime << ", PH: " << hitPH << ", charge: " << charge << ", sumADC: " << sumADC << std::endl;
         }
         
         nHitsPerView[view]++;
@@ -232,8 +232,6 @@ void HitAnalysisAlg::fillHistograms(const HitPtrVec& hitPtrVec) const
         else
             fPulseHeightMulti[view]->Fill(hitPH, 1.);
     }
-    
-    std::cout << "Number hits: " << nHitsPerView[0]+nHitsPerView[1]+nHitsPerView[2] << ", negative pulses: " << negCount << std::endl;
     
     return;
 }
