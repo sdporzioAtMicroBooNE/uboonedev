@@ -3,6 +3,7 @@ art_make( BASENAME_ONLY
           LIB_LIBRARIES 
 			lardataobj_RawData
                         lardataobj_RecoBase
+			lardata_RecoObjects
 			lardata_ArtDataHelper
                         lardata_Utilities
                         larcore_Geometry
@@ -11,7 +12,6 @@ art_make( BASENAME_ONLY
 			larevt_Filters
 			larevt_CalibrationDBI_IOVData
 			larevt_CalibrationDBI_Providers
-			lardataobj_RecoBase
                         ${ART_FRAMEWORK_CORE}
 			${ART_FRAMEWORK_PRINCIPAL}
 			${ART_FRAMEWORK_SERVICES_REGISTRY}
@@ -30,7 +30,8 @@ art_make( BASENAME_ONLY
 			${MF_UTILITIES}
                         ${FHICLCPP}
 			${CETLIB}
-        )
+                        ${Boost_SYSTEM_LIBRARY}
+	)
 
 install_headers()
 install_fhicl()
