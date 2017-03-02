@@ -92,7 +92,6 @@ namespace HitTree
       // Looping for each plane (?)
       for(const auto& viewHitPair : trackHitVecMapItr.second)
       {
-        // Looping for each hit in a plane (viewHitPair.second)
         for(const auto& hitPtr : viewHitPair.second)
         {
           t_PH_v.at(viewHitPair.first).push_back(hitPtr->PeakAmplitude());
@@ -102,6 +101,23 @@ namespace HitTree
       }
       fTrackTree->Fill();
     }
+    return;
+  }
+
+  void HitTreeAlg::fillTree(const int fEvent, const HitPtrVec& hitPtrVec)
+  {
+    // Looping for each hit in a plane (viewHitPair.second)
+    for(const auto& hitPtr : hitPtrVec)
+    {
+      // Extract interesting hit parameters
+      const geo::WireID& wireID   = hitPtr->WireID();
+      size_t view     = wireID.Plane;
+
+      t_PH_v.at(view).push_back(hitPtr->PeakAmplitude());
+      t_PW_v.at(view).push_back(hitPtr->RMS());
+      t_nHits[view]++;
+    }
+    fTrackTree->Fill();
     return;
   }
 

@@ -431,6 +431,8 @@ void TrackHitAna::analyze(const art::Event& event)
 //        std::set_difference(allHitVec.begin(),allHitVec.end(),pfTrackHits.begin(),pfTrackHits.end(),std::back_inserter(nonTrackHits));
 
         fAllHitsAnalysisAlg.fillHistograms(nonTrackHits);
+        fAllHitsTreeAlg.fillTree(fEvent,nonTrackHits);
+
 
         // Look up Wire data and associations to hits
         art::Handle< std::vector<recob::Wire> > wireHandle;

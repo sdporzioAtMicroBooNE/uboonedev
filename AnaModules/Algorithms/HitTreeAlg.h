@@ -54,6 +54,7 @@ namespace HitTree
     void reconfigure(fhicl::ParameterSet const & pset);
     void initializeTree(art::ServiceHandle<art::TFileService>&, const std::string&);
     void fillTree(const int, const art::Handle<std::vector<recob::Track>>, const TrackViewHitMap&);
+    void fillTree(const int, const HitPtrVec&);
     double CalcLength(const Track*);
 
   private:
