@@ -19,6 +19,8 @@ namespace HitTree
   HitTreeAlg::HitTreeAlg(fhicl::ParameterSet const & pset)
   : t_PH_v(3, std::vector<float>())
   , t_PW_v(3, std::vector<float>())
+  , t_wID_v(3, std::vector<int>())
+  , t_cID_v(3, std::vector<int>())
   {
     fGeometry           = lar::providerFrom<geo::Geometry>();
     fDetectorProperties = lar::providerFrom<detinfo::DetectorPropertiesService>();
@@ -66,6 +68,14 @@ namespace HitTree
     fTrackTree->Branch("Hit_PulseWidth_U",&t_PW_v[0]);
     fTrackTree->Branch("Hit_PulseWidth_V",&t_PW_v[1]);
     fTrackTree->Branch("Hit_PulseWidth_Y",&t_PW_v[2]);
+    fTrackTree->Branch("Hit_WireID_U",&t_wID_v[0]);
+    fTrackTree->Branch("Hit_WireID_V",&t_wID_v[1]);
+    fTrackTree->Branch("Hit_WireID_Y",&t_wID_v[2]);
+    fTrackTree->Branch("Hit_ChannelID_U",&t_cID_v[0]);
+    fTrackTree->Branch("Hit_ChannelID_V",&t_cID_v[1]);
+    fTrackTree->Branch("Hit_ChannelID_Y",&t_cID_v[2]);
+
+
 
     return;
   }
@@ -86,6 +96,12 @@ namespace HitTree
       t_PW_v.at(0).clear();
       t_PW_v.at(1).clear();
       t_PW_v.at(2).clear();
+      t_wID_v.at(0).clear();
+      t_wID_v.at(1).clear();
+      t_wID_v.at(2).clear();
+      t_cID_v.at(0).clear();
+      t_cID_v.at(1).clear();
+      t_cID_v.at(2).clear();
       t_nHits[0] = 0;
       t_nHits[1] = 0;
       t_nHits[2] = 0;
@@ -96,6 +112,8 @@ namespace HitTree
         {
           t_PH_v.at(viewHitPair.first).push_back(hitPtr->PeakAmplitude());
           t_PW_v.at(viewHitPair.first).push_back(hitPtr->RMS());
+          t_wID_v.at(viewHitPair.first).push_back(hitPtr->WireID().Wire);
+          t_cID_v.at(viewHitPair.first).push_back(hitPtr->Channel());
           t_nHits[viewHitPair.first]++;
         }
       }
@@ -106,6 +124,22 @@ namespace HitTree
 
   void HitTreeAlg::fillTree(const int fEvent, const HitPtrVec& hitPtrVec)
   {
+    t_PH_v.at(0).clear();
+    t_PH_v.at(1).clear();
+    t_PH_v.at(2).clear();
+    t_PW_v.at(0).clear();
+    t_PW_v.at(1).clear();
+    t_PW_v.at(2).clear();
+    t_wID_v.at(0).clear();
+    t_wID_v.at(1).clear();
+    t_wID_v.at(2).clear();
+    t_cID_v.at(0).clear();
+    t_cID_v.at(1).clear();
+    t_cID_v.at(2).clear();
+    t_nHits[0] = 0;
+    t_nHits[1] = 0;
+    t_nHits[2] = 0;
+
     // Looping for each hit in a plane (viewHitPair.second)
     for(const auto& hitPtr : hitPtrVec)
     {
@@ -115,6 +149,8 @@ namespace HitTree
 
       t_PH_v.at(view).push_back(hitPtr->PeakAmplitude());
       t_PW_v.at(view).push_back(hitPtr->RMS());
+      t_wID_v.at(view).push_back(hitPtr->WireID().Wire);
+      t_cID_v.at(view).push_back(hitPtr->Channel());
       t_nHits[view]++;
     }
     fTrackTree->Fill();

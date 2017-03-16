@@ -69,6 +69,7 @@ namespace HitTree
     int t_nHits[3];
     int t_ID;
     std::vector< std::vector<float> > t_PH_v, t_PW_v;
+    std::vector< std::vector<int> > t_wID_v, t_cID_v;
 
     // Useful services, keep copies for now (we can update during begin run periods)
     const geo::GeometryCore*           fGeometry;             ///< pointer to Geometry service
